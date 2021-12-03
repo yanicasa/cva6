@@ -13,9 +13,10 @@
 set PERIOD                        [getenv PERIOD];
 set DESIGN_NAME                   [getenv DESIGN_NAME]  ;#  The name of the top-level design
 set TECH                          [getenv TECH_NAME];
-set techno                        [getenv TECH_NAME];
 set FOUNDRY_PATH                  [getenv FOUNDRY_PATH];
 set TARGET_LIBRARY_FILES          [getenv TARGET_LIBRARY_FILES];
+set ADDITIONAL_SEARCH_PATH        [getenv ADDITIONAL_SEARCH_PATH];
+set SET_CUSTOM_CONSTRAINTS        [getenv SET_CUSTOM_CONSTRAINTS];
 
 set ADDITIONAL_LINK_LIB_FILES     "                                  ";#  Extra link logical libraries not included in TARGET_LIBRARY_FILES
 
@@ -31,7 +32,6 @@ suppress_message MWLIBP-032
 suppress_message UCN-1
 suppress_message UID-282
 
-set ADDITIONAL_SEARCH_PATH " ${FOUNDRY_PATH}/synopsys ${FOUNDRY_PATH} ";
 set_app_var search_path ". ${ADDITIONAL_SEARCH_PATH} $search_path"
 
 if {$synopsys_program_name == "dc_shell"}  {

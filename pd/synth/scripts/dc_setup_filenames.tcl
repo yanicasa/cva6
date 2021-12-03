@@ -52,6 +52,10 @@ set DCRM_THRESHOLD_VOLTAGE_GROUP_REPORT                 ${REPORTS_DIR}/${DESIGN_
 set DCRM_INSTANTIATE_CLOCK_GATES_REPORT                 ${REPORTS_DIR}/${DESIGN_NAME}_${TECH}_synth_instatiate_clock_gates.rpt
 set DCRM_FINAL_POWER_REPORT                             ${REPORTS_DIR}/${DESIGN_NAME}_${TECH}_synth_power.rpt
 
+set DCRM_DFT_FINAL_SCAN_PATH_REPORT                     ${REPORTS_DIR}/${DESIGN_NAME}_${TECH}_synth_scan_path.rpt
+set DCRM_DFT_FINAL_SCAN_CHAIN_REPORT                    ${REPORTS_DIR}/${DESIGN_NAME}_${TECH}_synth_scan_chain.rpt
+set DCRM_DFT_FINAL_SCAN_CELL_REPORT                     ${REPORTS_DIR}/${DESIGN_NAME}_${TECH}_synth_scan_cell.rpt
+
 ################
 # Output Files #
 ################
