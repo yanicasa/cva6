@@ -191,7 +191,7 @@ Reports are under: pd/synth/ariane/reports
 How to make cva6 synthesis and execute gate simulation ?
 ```
 export DV_SIMULATORS=veri-testharness,spike
-cva6/regress/smoke-tests.sh
+source cva6/regress/smoke-tests.sh
 make -C core-v-cores/cva6/pd/synth cva6_synth FOUNDRY_PATH=/your/techno/basepath/ TECH_NAME=yourTechnoName TARGET_LIBRARY_FILES="yourLib1.db\ yourLib2.db" PERIOD=10 NAND2_AREA=650 TARGET=cv64a6_imafdc_sv39 ADDITIONAL_SEARCH_PATH="others/libs/paths/one\ others/libs/paths/two"
 sed 's/module SyncSpRamBeNx64_1/module SyncSpRamBeNx64_2/' core-v-cores/cva6/pd/synth/ariane_synth.v > core-v-cores/cva6/pd/synth/ariane_synth_modified.v
 cd cva6/sim
