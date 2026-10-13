@@ -204,9 +204,10 @@ module scoreboard #(
             // The first micro-op is the entry just before this one, wrapping
             // from entry 0 to the last one.
             mem_n[CVA6Cfg.TRANS_ID_BITS'(trans_id_i[i]-1'b1)].sbe.valid = 1'b1;
-          end else begin
-            mem_n[trans_id_i[i]].sbe.valid = 1'b0;
           end
+          // The first micro-op waits for the last one, which marks both
+          // valid: it is left as is, as the last one may have written back
+          // in this same cycle on another port.
         end else begin
           mem_n[trans_id_i[i]].sbe.valid = 1'b1;
         end
