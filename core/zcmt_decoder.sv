@@ -24,7 +24,7 @@ module zcmt_decoder #(
     input  logic          [            31:0] instr_i,
     // current PC - FRONTEND
     input  logic          [CVA6Cfg.VLEN-1:0] pc_i,
-    // Intruction is of ZCMT extension - compressed_decoder
+    // Instruction is of ZCMT extension - compressed_decoder
     input  logic                             is_zcmt_instr_i,
     // Instruction is illegal - compressed_decoder
     input  logic                             illegal_instr_i,
@@ -86,12 +86,13 @@ module zcmt_decoder #(
     ypb_zcmt_req_o.kill_req = 1'b0;
     ypb_zcmt_req_o.vreq     = 1'b0;
     ypb_zcmt_req_o.atop     = ariane_pkg::AMO_NONE;
+    ypb_zcmt_req_o.cbo_op   = ariane_pkg::CBO_NONE;
     unique case (state_q)
       IDLE: begin
         fetch_stall_o = 1'b0;
         ypb_zcmt_req_o.preq = 1'b0;
         if (is_zcmt_instr_i) begin
-          if (CVA6Cfg.XLEN == 32) begin
+          if (CVA6Cfg.IS_XLEN32) begin
             req_addr_d = {jvt_i.base, 6'b000000} + {24'h0, instr_i[9:2], 2'b00};
             ypb_zcmt_req_o.paddr = req_addr_d;
             ypb_zcmt_req_o.preq = 1'b1;  // Always assert req
@@ -120,8 +121,9 @@ module zcmt_decoder #(
       TABLE_WAIT_RVALID: begin
         ypb_zcmt_req_o.preq = 1'b0;
         if (ypb_zcmt_rsp_i.rvalid) begin
-          // save the PC relative XLEN table jump address
-          jump_address_o = $unsigned($signed(ypb_zcmt_rsp_i.rdata) - $signed(pc_i));
+          // Clear bit 0 of the JVT target before converting it to a PC-relative offset.
+          jump_address_o =
+              $unsigned($signed({ypb_zcmt_rsp_i.rdata[CVA6Cfg.XLEN-1:1], 1'b0}) - $signed(pc_i));
           if (instr_i[9:2] < 32) begin
             // jal pc_offset, x0 for no return stack
             instr_o = {20'h0, 5'h0, riscv::OpcodeJal};

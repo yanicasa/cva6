@@ -42,6 +42,8 @@ module frontend
     input logic flush_i,
     // Halt requested by WFI and Accelerate port - CONTROLLER
     input logic halt_i,
+    // Halt frontend during fence.i, to avoid fetching a stale instruction - CONTROLLER
+    input logic halt_frontend_i,
     // Set COMMIT PC as next PC requested by FENCE, CSR side-effect and Accelerate port - CONTROLLER
     input logic set_pc_commit_i,
     // COMMIT PC - COMMIT
@@ -209,12 +211,24 @@ module frontend
       assign btb_prediction_shifted[i] = btb_prediction[addr[i][$clog2(CVA6Cfg.INSTR_PER_FETCH):1]];
     end
   end else begin
-    assign bht_prediction_shifted[0] = (serving_unaligned) ? bht_q : bht_prediction[addr[0][1]];
-    assign btb_prediction_shifted[0] = (serving_unaligned) ? btb_q : btb_prediction[addr[0][1]];
+    //  Without C an instruction is 4-byte aligned, so bit 2 of the address
+    //  selects the prediction slot. INSTR_PER_FETCH is still 2 under
+    //  superscalar fetch, and slot 1 must be driven too.
+    if (CVA6Cfg.INSTR_PER_FETCH == 1) begin : gen_single_prediction_without_c
+      assign bht_prediction_shifted[0] = (serving_unaligned) ? bht_q : bht_prediction[0];
+      assign btb_prediction_shifted[0] = (serving_unaligned) ? btb_q : btb_prediction[0];
+    end else begin : gen_prediction_address_without_c
+      assign bht_prediction_shifted[0] = (serving_unaligned) ? bht_q : bht_prediction[addr[0][2]];
+      assign btb_prediction_shifted[0] = (serving_unaligned) ? btb_q : btb_prediction[addr[0][2]];
+      for (genvar i = 1; i < CVA6Cfg.INSTR_PER_FETCH; i++) begin : gen_upper_slots
+        assign bht_prediction_shifted[i] = bht_prediction[addr[i][2]];
+        assign btb_prediction_shifted[i] = btb_prediction[addr[i][2]];
+      end
+    end
   end
   ;
 
-  // for the return address stack it doens't matter as we have the
+  // for the return address stack it doesn't matter as we have the
   // address of the call/return already
   logic bp_valid;
 
@@ -486,7 +500,10 @@ module frontend
   assign ypb_fetch_req_o.vaddr = npc_fetch_address;
   assign paddr = CVA6Cfg.MmuPresent ? arsp_i.fetch_paddr : npc_fetch_address;
 
-  assign data_req = (CVA6Cfg.MmuPresent ? (fetchbuf_w || fetchbuf_w_q) && !ex_s1 && arsp_i.fetch_valid: fetchbuf_w);
+  // Gate the fetch request during fence.i: the instruction cache flush and the
+  // data cache flush are not simultaneous, so a fetch issued in between would
+  // bring back an instruction the flush was meant to drop.
+  assign data_req = (CVA6Cfg.MmuPresent ? (fetchbuf_w || fetchbuf_w_q) && !ex_s1 && arsp_i.fetch_valid: fetchbuf_w) && !halt_frontend_i;
 
   always_comb begin : p_fsm_common
     // default assignmen
@@ -548,6 +565,7 @@ module frontend
   assign ypb_fetch_req_o.wdata = '0;
   assign ypb_fetch_req_o.aid = (!CVA6Cfg.MmuPresent && (ypb_a_state_q == TRANSPARENT)) ? fetchbuf_windex : fetchbuf_windex_q;
   assign ypb_fetch_req_o.atop = ariane_pkg::AMO_NONE;
+  assign ypb_fetch_req_o.cbo_op = ariane_pkg::CBO_NONE;
   assign ypb_fetch_req_o.cacheable = paddr_is_cacheable;
   assign ypb_fetch_req_o.access_type = '0;  //  0 = fetch
   assign ypb_fetch_req_o.rready = '1;  //always ready  TODO maybe manage instr_queue_ready & replay with this signal
@@ -814,6 +832,18 @@ module frontend
 
   if (CVA6Cfg.BHTEntries == 0) begin
     assign bht_prediction = '0;
+  end else if (CVA6Cfg.BPType == config_pkg::PH_BHT) begin : bht2lvl_gen
+    bht2lvl #(
+        .CVA6Cfg     (CVA6Cfg),
+        .bht_update_t(bht_update_t)
+    ) i_bht (
+        .clk_i,
+        .rst_ni,
+        .flush_i         (flush_bp_i),
+        .vpc_i           (vpc_bht),
+        .bht_update_i    (bht_update),
+        .bht_prediction_o(bht_prediction)
+    );
   end else begin : bht_gen
     if (CVA6Cfg.DclsEn & CVA6Cfg.DclsCommonBHT) begin : gen_common_bht
       assign bht_prediction = dcls_common_bht_data_i;

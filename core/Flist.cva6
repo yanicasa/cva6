@@ -20,7 +20,7 @@
 //
 // Manifest for the CVA6 CORE RTL model.
 //   - This is a CORE-ONLY manifest.
-//   - Relevent synthesis and simulation scripts/Makefiles must set the shell
+//   - Relevant synthesis and simulation scripts/Makefiles must set the shell
 //     ENV variable CVA6_REPO_DIR.
 //
 ///////////////////////////////////////////////////////////////////////////////
@@ -104,6 +104,7 @@ ${CVA6_REPO_DIR}/core/include/std_cache_pkg.sv
 ${CVA6_REPO_DIR}/core/include/instr_tracer_pkg.sv
 ${CVA6_REPO_DIR}/core/include/build_config_pkg.sv
 ${CVA6_REPO_DIR}/core/include/aes_pkg.sv
+${CVA6_REPO_DIR}/core/include/triggers_pkg.sv
 
 //CVXIF
 ${CVA6_REPO_DIR}/core/cvxif_compressed_if_driver.sv
@@ -152,6 +153,7 @@ ${CVA6_REPO_DIR}/core/cva6.sv
 ${CVA6_REPO_DIR}/core/cva6_pipeline.sv
 ${CVA6_REPO_DIR}/core/cva6_rvfi_probes.sv
 ${CVA6_REPO_DIR}/core/alu.sv
+${CVA6_REPO_DIR}/core/alu_wrapper.sv
 ${CVA6_REPO_DIR}/core/aes.sv
 // Note: depends on fpnew_pkg, above
 ${CVA6_REPO_DIR}/core/fpu_wrap.sv
@@ -162,6 +164,7 @@ ${CVA6_REPO_DIR}/core/controller.sv
 ${CVA6_REPO_DIR}/core/zcmt_decoder.sv
 ${CVA6_REPO_DIR}/core/csr_buffer.sv
 ${CVA6_REPO_DIR}/core/csr_regfile.sv
+${CVA6_REPO_DIR}/core/trigger_module.sv
 ${CVA6_REPO_DIR}/core/decoder.sv
 ${CVA6_REPO_DIR}/core/ex_stage.sv
 ${CVA6_REPO_DIR}/core/instr_realign.sv
@@ -179,6 +182,7 @@ ${CVA6_REPO_DIR}/core/ariane_regfile_ff.sv
 ${CVA6_REPO_DIR}/core/ariane_regfile_fpga.sv
 // NOTE: scoreboard.sv modified for DSIM (unchanged for other simulators)
 ${CVA6_REPO_DIR}/core/scoreboard.sv
+${CVA6_REPO_DIR}/core/raw_checker.sv
 ${CVA6_REPO_DIR}/core/store_buffer.sv
 ${CVA6_REPO_DIR}/core/amo_buffer.sv
 ${CVA6_REPO_DIR}/core/store_unit.sv
@@ -191,6 +195,7 @@ ${CVA6_REPO_DIR}/core/cva6_fifo_v3.sv
 // What is "frontend"?
 ${CVA6_REPO_DIR}/core/frontend/btb.sv
 ${CVA6_REPO_DIR}/core/frontend/bht.sv
+${CVA6_REPO_DIR}/core/frontend/bht2lvl.sv
 ${CVA6_REPO_DIR}/core/frontend/ras.sv
 ${CVA6_REPO_DIR}/core/frontend/instr_scan.sv
 ${CVA6_REPO_DIR}/core/frontend/instr_queue.sv
@@ -204,6 +209,11 @@ ${CVA6_REPO_DIR}/core/cache_subsystem/axi_adapter.sv
 ${HPDCACHE_DIR}/rtl/src/utils/hpdcache_mem_resp_demux.sv
 ${HPDCACHE_DIR}/rtl/src/utils/hpdcache_mem_to_axi_read.sv
 ${HPDCACHE_DIR}/rtl/src/utils/hpdcache_mem_to_axi_write.sv
+${CVA6_REPO_DIR}/core/include/dummy_l15_pkg.sv
+${HPDCACHE_DIR}/rtl/src/utils/hpdcache_to_l15.sv
+${HPDCACHE_DIR}/rtl/src/utils/hpdcache_l15_req_arbiter.sv
+${HPDCACHE_DIR}/rtl/src/utils/hpdcache_l15_resp_demux.sv
+${CVA6_REPO_DIR}/core/cache_subsystem/cva6_hpdcache_subsystem_l15_adapter.sv
 ${CVA6_REPO_DIR}/core/cache_subsystem/cva6_hpdcache_subsystem.sv
 ${CVA6_REPO_DIR}/core/cache_subsystem/cva6_hpdcache_subsystem_axi_arbiter.sv
 ${CVA6_REPO_DIR}/core/cache_subsystem/cva6_hpdcache_if_adapter.sv

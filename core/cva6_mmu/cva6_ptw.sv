@@ -41,7 +41,7 @@ module cva6_ptw
     output logic ptw_error_o,  // set when an error occurred
     output logic ptw_error_at_g_st_o,  // set when an error occurred at the G-Stage
     output logic ptw_err_at_g_int_st_o,  // set when an error occurred at the G-Stage during S-Stage translation
-    output logic ptw_access_exception_o,  // set when an PMP access exception occured
+    output logic ptw_access_exception_o,  // set when an PMP access exception occurred
     input logic enable_translation_i,  // CSRs indicate to enable SV39 VS-Stage translation
     input logic enable_g_translation_i,  // CSRs indicate to enable SV39  G-Stage translation
     input logic en_ld_st_translation_i,  // enable virtual memory translation for load/stores
@@ -49,6 +49,7 @@ module cva6_ptw
     input logic v_i,  // current virtualization mode bit
     input logic ld_st_v_i,  // load/store virtualization mode bit
     input logic hlvx_inst_i,  // is a HLVX load/store instruction
+    input logic mbe_i,  // data endianness of the processor
 
     input  logic             lsu_is_store_i,     // this translation was triggered by a store
     // PTW memory interface
@@ -84,8 +85,8 @@ module cva6_ptw
     output logic shared_tlb_miss_o,
 
     // PMP
-    input riscv::pmpcfg_t [(CVA6Cfg.NrPMPEntries > 0 ? CVA6Cfg.NrPMPEntries-1 : 0):0] pmpcfg_i,
-    input logic [(CVA6Cfg.NrPMPEntries > 0 ? CVA6Cfg.NrPMPEntries-1 : 0):0][CVA6Cfg.PLEN-3:0] pmpaddr_i,
+    input riscv::pmpcfg_t [avoid_neg(CVA6Cfg.NrPMPEntries-1):0] pmpcfg_i,
+    input logic [avoid_neg(CVA6Cfg.NrPMPEntries-1):0][CVA6Cfg.PLEN-3:0] pmpaddr_i,
     output logic [CVA6Cfg.PLEN-1:0] bad_paddr_o,
     output logic [CVA6Cfg.GPLEN-1:0] bad_gpaddr_o,
     output logic aborted_req_o
@@ -98,6 +99,9 @@ module cva6_ptw
   pte_cva6_t pte;
   // register to perform context switch between stages
   pte_cva6_t gpte_q, gpte_d;
+
+  //Field for SVNAPOT
+  logic is_napot_64k;
   assign pte = pte_cva6_t'(data_rdata_q);
 
   enum logic [2:0] {
@@ -124,6 +128,22 @@ module cva6_ptw
     G_FINAL_STAGE
   }
       ptw_stage_q, ptw_stage_d;
+
+  // Big Endian Capability Additions
+  // The data coming into the page table walker from memory is byte reversed
+  // when the processor is in big endian data mode, so a page table stored in
+  // big endian byte order can still be walked.
+  logic [CVA6Cfg.XLEN-1:0] endian_data;
+  logic [CVA6Cfg.XLEN-1:0] byteSwapped_data;
+  assign byteSwapped_data = {<<8{ypb_mmu_ptw_rsp_i.rdata}};
+  assign endian_data = mbe_i ? byteSwapped_data : ypb_mmu_ptw_rsp_i.rdata;
+
+  logic hlvx_eff;
+  // The HLVX permission rule (allow read via execute-only pages) applies only to the
+  // *original* access. For an implicit page-table read performed while G-stage-translating
+  // a VS-stage PTE address (G_INTERMED_STAGE), the access must be checked as an ordinary
+  // implicit load, so HLVX must not apply here.
+  assign hlvx_eff = hlvx_inst_i && !(CVA6Cfg.RVH && ptw_stage_q == G_INTERMED_STAGE);
 
   // is this an instruction page table walk?
   logic is_instr_ptw_q, is_instr_ptw_n;
@@ -165,6 +185,8 @@ module cva6_ptw
   assign ypb_mmu_ptw_req_o.rready = '1;
   assign ypb_mmu_ptw_req_o.access_type = 1'b1;  //1 = data
   assign ypb_mmu_ptw_req_o.atop = ariane_pkg::AMO_NONE;
+  // not a cache block operation
+  assign ypb_mmu_ptw_req_o.cbo_op = ariane_pkg::CBO_NONE;
   // -----------
   // TLB Update
   // -----------
@@ -200,11 +222,13 @@ module cva6_ptw
   endgenerate
 
   always_comb begin : tlb_update
+    shared_tlb_update_o.is_napot_64k = is_napot_64k;
     // update the correct page table level
     for (int unsigned y = 0; y < HYP_EXT + 1; y++) begin
       for (int unsigned x = 0; x < CVA6Cfg.PtLevels - 1; x++) begin
-        if((enable_g_translation_i && enable_translation_i) || (en_ld_st_g_translation_i && en_ld_st_translation_i) && CVA6Cfg.RVH) begin
-          shared_tlb_update_o.is_page[x][y] = (ptw_lvl_q[y==HYP_EXT?0 : 1] == x);
+        if(((enable_g_translation_i && enable_translation_i) || (en_ld_st_g_translation_i && en_ld_st_translation_i)) && CVA6Cfg.RVH) begin
+          // VS + G-Translation
+          shared_tlb_update_o.is_page[x][y] = (ptw_lvl_q[y==1?0 : 1] == x);
         end else if (enable_translation_i || en_ld_st_translation_i || !CVA6Cfg.RVH) begin
           shared_tlb_update_o.is_page[x][y] = y == 0 ? (ptw_lvl_q[0] == x) : 1'b0;
         end else begin
@@ -224,7 +248,7 @@ module cva6_ptw
 
     // output the correct ASIDs
     shared_tlb_update_o.asid = tlb_update_asid_q;
-    shared_tlb_update_o.vmid = tlb_update_vmid_q;
+    shared_tlb_update_o.vmid = CVA6Cfg.RVH ? tlb_update_vmid_q : '0;
 
     bad_paddr_o = ptw_access_exception_o ? ptw_pptr_q : 'b0;
     if (CVA6Cfg.RVH)
@@ -252,7 +276,7 @@ module cva6_ptw
   );
 
 
-  assign ypb_mmu_ptw_req_o.be = CVA6Cfg.XLEN == 32 ? be_gen_32(
+  assign ypb_mmu_ptw_req_o.be = CVA6Cfg.IS_XLEN32 ? be_gen_32(
       ypb_mmu_ptw_req_o.vaddr[1:0], ypb_mmu_ptw_req_o.size
   ) : '1;
 
@@ -295,15 +319,16 @@ module cva6_ptw
     ptw_err_at_g_int_st_o     = 1'b0;
     ptw_access_exception_o    = 1'b0;
     shared_tlb_update_o.valid = 1'b0;
+    is_napot_64k              = 1'b0;
     is_instr_ptw_n            = is_instr_ptw_q;
     ptw_lvl_n                 = ptw_lvl_q;
     ptw_pptr_n                = ptw_pptr_q;
     state_d                   = state_q;
+    gpte_d                    = '0;
     ptw_stage_d               = ptw_stage_q;
     global_mapping_n          = global_mapping_q;
     // input registers
     tlb_update_asid_n         = tlb_update_asid_q;
-    tlb_update_vmid_n         = tlb_update_vmid_q;
     vaddr_n                   = vaddr_q;
     pptr                      = ptw_pptr_q;
 
@@ -311,6 +336,7 @@ module cva6_ptw
       gpaddr_n    = gpaddr_q;
       gptw_pptr_n = gptw_pptr_q;
       gpte_d = gpte_q;
+      tlb_update_vmid_n = tlb_update_vmid_q;
     end
 
     shared_tlb_miss_o = 1'b0;
@@ -406,7 +432,7 @@ module cva6_ptw
           // Invalid PTE
           // -------------
           // If pte.v = 0, or if pte.r = 0 and pte.w = 1, or if pte.reserved !=0 in sv39 and sv39x4, stop and raise a page-fault exception.
-          if (!pte.v || (!pte.r && pte.w) || (|pte.reserved && CVA6Cfg.XLEN == 64))
+          if (!pte.v || (!pte.r && pte.w) || (|pte.reserved && CVA6Cfg.IS_XLEN64) || (!CVA6Cfg.SvnapotEn && pte.n) || (CVA6Cfg.SvnapotEn && !(pte.r || pte.x) && pte.n))
             state_d = PROPAGATE_ERROR;
           // -----------
           // Valid PTE
@@ -416,6 +442,16 @@ module cva6_ptw
             // it is a valid PTE
             // if pte.r = 1 or pte.x = 1 it is a valid PTE
             if (pte.r || pte.x) begin
+              // A 64KiB NAPOT page is identified by the N-bit being set and PPN[3:0] encoding '1000'
+              if (CVA6Cfg.SvnapotEn && pte.n) begin
+                // Svnapot: Check if the leaf PTE represents a 64KiB NAPOT page
+                is_napot_64k = (pte.ppn[3:0] == 4'b1000) && (ptw_lvl_q[0] == 2);
+                // Svnapot: Any other encoding with the N-bit set is a reserved format and must cause a page fault
+                // Additionally, fault if N is set on a megapage or gigapage
+                if (!is_napot_64k) begin
+                  state_d = PROPAGATE_ERROR;
+                end
+              end
               if (CVA6Cfg.RVH) begin
                 case (ptw_stage_q)
                   S_STAGE: begin
@@ -468,7 +504,7 @@ module cva6_ptw
                 // If page is not readable (there are no write-only pages)
                 // we can directly raise an error. This doesn't put a useless
                 // entry into the TLB.
-                if (pte.a && ((pte.r && !hlvx_inst_i) || (pte.x && (mxr_i || hlvx_inst_i || (ptw_stage_q == S_STAGE && vmxr_i && ld_st_v_i && CVA6Cfg.RVH))))) begin
+                if (pte.a && ((pte.r && !hlvx_eff) || (pte.x && (mxr_i || hlvx_eff || (ptw_stage_q == S_STAGE && vmxr_i && ld_st_v_i && CVA6Cfg.RVH))))) begin
                   if (CVA6Cfg.RVH && ((ptw_stage_q == G_FINAL_STAGE) || !en_ld_st_g_translation_i) || !CVA6Cfg.RVH)
                     shared_tlb_update_o.valid = 1'b1;
                 end else begin
@@ -543,6 +579,7 @@ module cva6_ptw
                         pte.ppn, vaddr_lvl[HYP_EXT*2][ptw_lvl_q[0]], (CVA6Cfg.PtLevels)'(0)
                       };
                     end
+                    default: ;
                   endcase
                 end else ptw_pptr_n = {pte.ppn, vaddr_lvl[0][ptw_lvl_q[0]], (CVA6Cfg.PtLevels)'(0)};
 
@@ -557,7 +594,7 @@ module cva6_ptw
               if (CVA6Cfg.RVH) begin
                 if (((v_i && is_instr_ptw_q) || (ld_st_v_i && !is_instr_ptw_q)) && ptw_stage_q == S_STAGE && !((|pte.ppn[CVA6Cfg.PPNW-1:CVA6Cfg.GPPNW-1+HYP_EXT]) == 1'b0)) begin
                   state_d = PROPAGATE_ERROR;
-                  ptw_stage_d = ptw_stage_q;
+                  ptw_stage_d = G_FINAL_STAGE;
                 end
               end
             end
@@ -646,7 +683,7 @@ module cva6_ptw
       tlb_update_asid_q <= tlb_update_asid_n;
       vaddr_q           <= vaddr_n;
       global_mapping_q  <= global_mapping_n;
-      data_rdata_q      <= ypb_mmu_ptw_rsp_i.rdata;
+      data_rdata_q      <= endian_data;
       data_rvalid_q     <= ypb_mmu_ptw_rsp_i.rvalid;
       grant_q           <= ypb_mmu_ptw_rsp_i.pgnt;
 

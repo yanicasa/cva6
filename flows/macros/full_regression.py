@@ -121,7 +121,15 @@ TARGETS = [
     # AXI PMP MMU
     "cv32a6_imac_sv32",
     "cv32a65x_sv32_axi",
+    # Sdtrig trigger module, every trigger type and match type enabled,
+    # across the three address-checking shapes: PMP only, neither PMP nor MMU,
+    # and MMU.
+    "cv32a65x_sdtrig",
+    "cv32a65x_noPMP_sdtrig",
+    "cv32a65x_sv32_sdtrig",
     "cv64a6_imafdc_sv39_hpdcache_pmp_mmu_axi",
+    # AXI PMP MMU with the alternative half-precision format and AXI burst writes
+    "cv64a6_imafdc_sv39_hpdcache_pmp_mmu_axi_fpalt",
 ]
 
 # Testlists run per target. A testlist whose
@@ -173,6 +181,11 @@ TESTLISTS = {
         "base_rv32_amo_v",
     ],
     "cv32a65x_sv32_axi": ["base_rv32_p", "base_rv32_v", "base_pmp"],
+    "cv32a65x_sdtrig": ["base_rv32_p", "testlist_sdtrig"],
+    "cv32a65x_noPMP_sdtrig": ["base_rv32_p", "testlist_sdtrig"],
+    # testlist_sdtrig_nommu on the Sv32 target: sdtrig_etrigger is excluded
+    # there, see the note in that file.
+    "cv32a65x_sv32_sdtrig": ["base_rv32_p", "base_rv32_v", "testlist_sdtrig_nommu"],
     "cv64a6_imafdc_sv39_hpdcache_pmp_mmu_axi": [
         "base_rv64_p",
         "base_rv64_v",
@@ -180,6 +193,7 @@ TESTLISTS = {
         "base_rv64_amo_p",
         "base_rv64_amo_v",
     ],
+    "cv64a6_imafdc_sv39_hpdcache_pmp_mmu_axi_fpalt": ["base_rv64_p", "base_rv64_amo_p"],
 }
 
 # Benchmark patterns, compiled with the same

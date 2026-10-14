@@ -20,6 +20,7 @@ package cva6_config_pkg;
   localparam CVA6ConfigXlen = 64;
 
   localparam CVA6ConfigRVF = 1;
+  localparam CVA6ConfigRVD = 1;
   localparam CVA6ConfigF16En = 0;
   localparam CVA6ConfigF16AltEn = 0;
   localparam CVA6ConfigF8En = 0;
@@ -84,6 +85,7 @@ package cva6_config_pkg;
       FpgaAlteraEn: bit'(0),  // for Altera (only)
       TechnoCut: bit'(0),
       SuperscalarEn: bit'(0),
+      ALUBypass: bit'(0),
       NrCommitPorts: unsigned'(2),
       AxiAddrWidth: unsigned'(CVA6ConfigAxiAddrWidth),
       AxiDataWidth: unsigned'(CVA6ConfigAxiDataWidth),
@@ -91,7 +93,7 @@ package cva6_config_pkg;
       AxiUserWidth: unsigned'(CVA6ConfigDataUserWidth),
       NrLoadBufEntries: unsigned'(CVA6ConfigNrLoadBufEntries),
       RVF: bit'(CVA6ConfigRVF),
-      RVD: bit'(CVA6ConfigRVF),
+      RVD: bit'(CVA6ConfigRVD),
       XF16: bit'(CVA6ConfigF16En),
       XF16ALT: bit'(CVA6ConfigF16AltEn),
       XF8: bit'(CVA6ConfigF8En),
@@ -108,6 +110,7 @@ package cva6_config_pkg;
       CvxifEn: bit'(CVA6ConfigCvxifEn),
       CoproType: config_pkg::COPRO_NONE,
       RVZiCond: bit'(CVA6ConfigRVZiCond),
+      RVZiCbom: bit'(1),
       RVZicntr: bit'(1),
       RVZifencei: bit'(1),
       RVZihpm: bit'(1),
@@ -121,8 +124,25 @@ package cva6_config_pkg;
       ExceptionAddress: 64'h808,
       RASDepth: unsigned'(CVA6ConfigRASDepth),
       BTBEntries: unsigned'(CVA6ConfigBTBEntries),
+      BPType: config_pkg::BHT,
       BHTEntries: unsigned'(CVA6ConfigBHTEntries),
+      BHTHist: unsigned'(3),
       DmBaseAddress: 64'h0,
+      Sdtrig: bit'(0),
+      SdtrigMcontrol6: bit'(0),
+      SdtrigMcontrol6ExecAddr: bit'(0),
+      SdtrigMcontrol6ExecData: bit'(0),
+      SdtrigMcontrol6Store: bit'(0),
+      SdtrigMcontrol6LoadAddr: bit'(0),
+      SdtrigMcontrol6LoadData: bit'(0),
+      SdtrigIcount: bit'(0),
+      SdtrigEtrigger: bit'(0),
+      SdtrigItrigger: bit'(0),
+      SdtrigNrTriggers: int'(4),
+      SdtrigTriggerChaining: bit'(0),
+      SdtrigSupportedActions: 2'b01,
+      SdtrigSupportedMatch: 10'b00_0000_0001,
+      SdtrigSupportTextra: bit'(0),
       TvalEn: bit'(CVA6ConfigTvalEn),
       DirectVecOnly: bit'(0),
       NrPMPEntries: unsigned'(CVA6ConfigNrPMPEntries),
@@ -151,7 +171,10 @@ package cva6_config_pkg;
       DcacheSetAssoc: unsigned'(CVA6ConfigDcacheSetAssoc),
       DcacheLineWidth: unsigned'(CVA6ConfigDcacheLineWidth),
       DcacheFlushOnFence: bit'(CVA6ConfigDcacheFlushOnFence),
+      DcacheFlushOnFenceI: bit'(0),
       DcacheInvalidateOnFlush: bit'(CVA6ConfigDcacheInvalidateOnFlush),
+      DcacheEccEnable: bit'(0),
+      DcacheEccScrubberEnable: bit'(0),
       DataUserEn: bit'(CVA6ConfigDataUserEn),
       WtDcacheWbufDepth: int'(CVA6ConfigWtDcacheWbufDepth),
       FetchUserWidth: unsigned'(CVA6ConfigFetchUserWidth),
@@ -160,6 +183,7 @@ package cva6_config_pkg;
       DataTlbEntries: int'(16),
       UseSharedTlb: bit'(0),
       SharedTlbDepth: int'(64),
+      SvnapotEn: bit'(0),
       NrLoadPipeRegs: int'(CVA6ConfigNrLoadPipeRegs),
       NrStorePipeRegs: int'(CVA6ConfigNrStorePipeRegs),
       DcacheIdWidth: int'(CVA6ConfigDcacheIdWidth),

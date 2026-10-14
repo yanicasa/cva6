@@ -42,13 +42,13 @@ module cva6
     localparam type hartid_t = `HARTID_T(CVA6Cfg),
     localparam type x_compressed_req_t = `X_COMPRESSED_REQ_T(CVA6Cfg, hartid_t),
     localparam type x_compressed_resp_t = `X_COMPRESSED_RESP_T(CVA6Cfg),
-    localparam type x_issue_req_t = `X_ISSUE_REQ_T(CVA6Cfg, hartit_t, id_t),
+    localparam type x_issue_req_t = `X_ISSUE_REQ_T(CVA6Cfg, hartid_t, id_t),
     localparam type x_issue_resp_t = `X_ISSUE_RESP_T(CVA6Cfg, writeregflags_t, readregflags_t),
     localparam type x_register_t = `X_REGISTER_T(CVA6Cfg, hartid_t, id_t, readregflags_t),
     localparam type x_commit_t = `X_COMMIT_T(CVA6Cfg, hartid_t, id_t),
     localparam type x_result_t = `X_RESULT_T(CVA6Cfg, hartid_t, id_t, writeregflags_t),
     localparam type cvxif_req_t =
-    `CVXIF_REQ_T(CVA6Cfg, x_compressed_req_t, x_issue_req_t, x_register_req_t, x_commit_t),
+    `CVXIF_REQ_T(CVA6Cfg, x_compressed_req_t, x_issue_req_t, x_register_t, x_commit_t),
     localparam type cvxif_resp_t =
     `CVXIF_RESP_T(CVA6Cfg, x_compressed_resp_t, x_issue_resp_t, x_result_t)
 ) (
@@ -103,6 +103,11 @@ module cva6
   logic icache_miss;
 
   logic dcache_enable;
+  logic dcache_scrub_enable;
+  logic [5:0] dcache_scrub_period;
+  logic dcache_scrub_cycle;
+  logic dcache_dat_cor_err, dcache_dat_unc_err;
+  logic dcache_dir_cor_err, dcache_dir_unc_err;
   logic dcache_flush;
   logic dcache_flush_ack;
   logic dcache_miss;
@@ -194,10 +199,17 @@ module cva6
 
       // FROM/TO DCACHE SUBSYSTEM
 
-      .dcache_enable_o   (dcache_enable),
-      .dcache_flush_o    (dcache_flush),
-      .dcache_flush_ack_i(dcache_flush_ack),
-      .dcache_miss_i     (dcache_miss),
+      .dcache_enable_o      (dcache_enable),
+      .dcache_scrub_enable_o(dcache_scrub_enable),
+      .dcache_scrub_period_o(dcache_scrub_period),
+      .dcache_scrub_cycle_i (dcache_scrub_cycle),
+      .dcache_dat_cor_err_i (dcache_dat_cor_err),
+      .dcache_dat_unc_err_i (dcache_dat_unc_err),
+      .dcache_dir_cor_err_i (dcache_dir_cor_err),
+      .dcache_dir_unc_err_i (dcache_dir_unc_err),
+      .dcache_flush_o       (dcache_flush),
+      .dcache_flush_ack_i   (dcache_flush_ack),
+      .dcache_miss_i        (dcache_miss),
 
       .ypb_store_req_o  (ypb_store_req),
       .ypb_store_rsp_i  (ypb_store_rsp),
@@ -298,9 +310,7 @@ module cva6
         .ypb_zcmt_req_t   (ypb_zcmt_req_t),
         .ypb_zcmt_rsp_t   (ypb_zcmt_rsp_t),
         .noc_req_t        (noc_req_t),
-        .noc_resp_t       (noc_resp_t),
-        .cmo_req_t        (logic  /*FIXME*/),
-        .cmo_rsp_t        (logic  /*FIXME*/)
+        .noc_resp_t       (noc_resp_t)
     ) i_cache_subsystem (
         .clk_i (clk_i),
         .rst_ni(rst_ni),
@@ -318,10 +328,17 @@ module cva6
 
         // FROM/TO LSU
 
-        .dcache_enable_i   (dcache_enable),
-        .dcache_flush_i    (dcache_flush),
-        .dcache_flush_ack_o(dcache_flush_ack),
-        .dcache_miss_o     (dcache_miss),
+        .dcache_enable_i      (dcache_enable),
+        .dcache_scrub_enable_i(dcache_scrub_enable),
+        .dcache_scrub_period_i(dcache_scrub_period),
+        .dcache_scrub_cycle_o (dcache_scrub_cycle),
+        .dcache_dat_cor_err_o (dcache_dat_cor_err),
+        .dcache_dat_unc_err_o (dcache_dat_unc_err),
+        .dcache_dir_cor_err_o (dcache_dir_cor_err),
+        .dcache_dir_unc_err_o (dcache_dir_unc_err),
+        .dcache_flush_i       (dcache_flush),
+        .dcache_flush_ack_o   (dcache_flush_ack),
+        .dcache_miss_o        (dcache_miss),
 
         // DATA FROM/TO PIPELINE (YPB)
 
@@ -338,11 +355,6 @@ module cva6
 
         .wbuffer_empty_o (wbuffer_empty),
         .wbuffer_not_ni_o(wbuffer_not_ni),
-
-        // FROM/TO CMO
-
-        .dcache_cmo_req_i('0  /*FIXME*/),
-        .dcache_cmo_rsp_o(  /*FIXME*/),
 
         // FROM/TO HW PREFETCHER
 

@@ -186,7 +186,7 @@ module cva6_hpdcache_if_adapter
 
       assign ypb_load_rsp_o.rvalid = hpdcache_rsp_valid_i && !hpdcache_rsp_i.aborted;
       assign ypb_load_rsp_o.rid = hpdcache_rsp_i.tid;
-      assign ypb_load_rsp_o.err = '0;
+      assign ypb_load_rsp_o.err = hpdcache_rsp_i.error;
       assign ypb_load_rsp_o.rdata = hpdcache_rsp_i.rdata;
 
       //  Assertions
@@ -310,6 +310,7 @@ else if (IsZcmtPort == 1'b1) begin : zcmt_port_gen
 
       logic forward_store, forward_amo, forward_flush;
       logic flush_not_sent;
+      hpdcache_pkg::hpdcache_req_op_t store_op;
 
       //  DCACHE flush request
       //  {{{
@@ -355,6 +356,22 @@ else if (IsZcmtPort == 1'b1) begin : zcmt_port_gen
       end
       //  }}}
 
+      // CBO logic
+      //  {{{
+      always_comb begin : store_cmo_comb
+        store_op = hpdcache_pkg::HPDCACHE_REQ_STORE;
+
+        if (CVA6Cfg.RVZiCbom) begin
+          case (ypb_store_req_i.cbo_op)
+            ariane_pkg::CBO_INVAL: store_op = hpdcache_pkg::HPDCACHE_REQ_CMO_INVAL_NLINE;
+            ariane_pkg::CBO_CLEAN: store_op = hpdcache_pkg::HPDCACHE_REQ_CMO_FLUSH_NLINE;
+            ariane_pkg::CBO_FLUSH: store_op = hpdcache_pkg::HPDCACHE_REQ_CMO_FLUSH_INVAL_NLINE;
+            default: ;  // store - above
+          endcase
+        end
+      end
+      //  }}}
+
       //  AMO logic
       //  {{{
 
@@ -381,7 +398,7 @@ else if (IsZcmtPort == 1'b1) begin : zcmt_port_gen
       assign amo_data_size = ypb_amo_req_i.size;
       assign amo_is_word = (amo_data_size == 2'b10);
       assign amo_is_word_hi = ypb_amo_req_i.paddr[2];
-      if (CVA6Cfg.XLEN == 64) begin : amo_data_64_gen
+      if (CVA6Cfg.IS_XLEN64) begin : amo_data_64_gen
         assign amo_data = amo_is_word ? {2{ypb_amo_req_i.wdata[0+:32]}} : ypb_amo_req_i.wdata;
         assign amo_data_be = amo_is_word_hi ? 8'hf0 : amo_is_word ? 8'h0f : 8'hff;
       end else begin : amo_data_32_gen
@@ -410,7 +427,7 @@ else if (IsZcmtPort == 1'b1) begin : zcmt_port_gen
       assign hpdcache_req_store = '{
               addr_offset: get_paddr_index(ypb_store_req_i.paddr),
               wdata: ypb_store_req_i.wdata,
-              op: hpdcache_pkg::HPDCACHE_REQ_STORE,
+              op: store_op,
               be: ypb_store_req_i.be,
               size: ypb_store_req_i.size,
               sid: hpdcache_req_sid_i,
@@ -465,7 +482,7 @@ else if (IsZcmtPort == 1'b1) begin : zcmt_port_gen
 
       //  Response forwarding
       //  {{{
-      if (CVA6Cfg.XLEN == 64) begin : amo_resp_64_gen
+      if (CVA6Cfg.IS_XLEN64) begin : amo_resp_64_gen
         assign amo_resp_word = amo_is_word_hi
                              ? hpdcache_rsp_i.rdata[0][32 +: 32]
                              : hpdcache_rsp_i.rdata[0][0  +: 32];
@@ -502,9 +519,10 @@ else if (IsZcmtPort == 1'b1) begin : zcmt_port_gen
         if (!rst_ni) begin
           amo_pending_q <= 1'b0;
         end else begin
+          //  Set when a new atomic request is accepted, held until its response.
           amo_pending_q <=
-              ( ypb_amo_req_i.preq  & hpdcache_req_ready_i & ~amo_pending_q) |
-              (~ypb_amo_valid & amo_pending_q);
+              (~amo_pending_q &  ypb_amo_req_i.preq & hpdcache_req_ready_i) |
+              ( amo_pending_q & ~ypb_amo_valid);
         end
       end
 

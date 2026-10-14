@@ -41,6 +41,8 @@ module load_store_unit
     input logic stall_st_pending_i,
     // No store pending - COMMIT_STAGE
     output logic no_st_pending_o,
+    // Shared TLB is busy processing a multi-cycle flush
+    output logic shared_tlb_flush_busy_o,
     // TO_BE_COMPLETED - TO_BE_COMPLETED
     input logic amo_valid_commit_i,
     // TO_BE_COMPLETED - TO_BE_COMPLETED
@@ -93,6 +95,8 @@ module load_store_unit
 
     // Current privilege mode - CSR_REGFILE
     input riscv::priv_lvl_t priv_lvl_i,
+    // Data Endian mode - CSR_REGFILE
+    input logic mbe_i,
     // Current virtualization mode - CSR_REGFILE
     input logic v_i,
     // Privilege level at which load and stores should happen - CSR_REGFILE
@@ -158,14 +162,20 @@ module load_store_unit
     // TO_BE_COMPLETED - TO_BE_COMPLETED
     input logic dcache_wbuffer_not_ni_i,
     // PMP configuration - CSR_REGFILE
-    input riscv::pmpcfg_t [(CVA6Cfg.NrPMPEntries > 0 ? CVA6Cfg.NrPMPEntries-1 : 0):0] pmpcfg_i,
+    input riscv::pmpcfg_t [avoid_neg(CVA6Cfg.NrPMPEntries-1):0] pmpcfg_i,
     // PMP address - CSR_REGFILE
-    input logic           [(CVA6Cfg.NrPMPEntries > 0 ? CVA6Cfg.NrPMPEntries-1 : 0):0][CVA6Cfg.PLEN-3:0] pmpaddr_i,
+    input logic [avoid_neg(CVA6Cfg.NrPMPEntries-1):0][CVA6Cfg.PLEN-3:0] pmpaddr_i,
 
-    // RVFI inforamtion - RVFI
+    // RVFI information - RVFI
     output lsu_ctrl_t                    rvfi_lsu_ctrl_o,
     // RVFI information - RVFI
-    output logic      [CVA6Cfg.PLEN-1:0] rvfi_mem_paddr_o
+    output logic      [CVA6Cfg.PLEN-1:0] rvfi_mem_paddr_o,
+    //Trigger module communication
+    input  logic                         sdtrig_load_stall_i,
+    input  logic                         sdtrig_load_cancel_i,
+    input  logic      [CVA6Cfg.XLEN-1:0] sdtrig_load_action_i,
+    input  logic                         sdtrig_store_stall_i,
+    input  logic      [CVA6Cfg.XLEN-1:0] sdtrig_store_action_i
 );
 
   // data is misaligned
@@ -294,6 +304,7 @@ module load_store_unit
         .vs_sum_i,
         .mxr_i,
         .vmxr_i,
+        .mbe_i           (mbe_i),
 
         .hlvx_inst_i    (mmu_hlvx_inst),
         .hs_ld_st_inst_i(mmu_hs_ld_st_inst),
@@ -313,6 +324,7 @@ module load_store_unit
 
         .itlb_miss_o(itlb_miss_o),
         .dtlb_miss_o(dtlb_miss_o),
+        .shared_tlb_flush_busy_o(shared_tlb_flush_busy_o),
 
         .ypb_mmu_ptw_req_o(ypb_mmu_ptw_req_o),
         .ypb_mmu_ptw_rsp_i(ypb_mmu_ptw_rsp_i),
@@ -323,6 +335,7 @@ module load_store_unit
   end else begin : gen_no_mmu
     // fetch request without MMU, virtual and physical address are identical
     assign pmp_fetch_arsp.fetch_valid = fetch_areq_i.fetch_req;
+    assign shared_tlb_flush_busy_o = 1'b0;  //default 0 for shared_tlb flush
     if (CVA6Cfg.VLEN >= CVA6Cfg.PLEN) begin : gen_virtual_physical_address_instruction_vlen_greater
       assign pmp_fetch_arsp.fetch_paddr = fetch_areq_i.fetch_vaddr[CVA6Cfg.PLEN-1:0];
     end else begin : gen_virtual_physical_address_instruction_plen_greater
@@ -402,6 +415,7 @@ module load_store_unit
       .commit_i,
       .commit_ready_o,
       .amo_valid_commit_i,
+      .mbe_i     (mbe_i),
 
       .valid_o              (st_valid),
       .trans_id_o           (st_trans_id),
@@ -423,7 +437,10 @@ module load_store_unit
       .ypb_amo_req_o        (ypb_amo_req_o),
       .ypb_amo_rsp_i        (ypb_amo_rsp_i),
       .ypb_store_req_o      (ypb_store_req_o),
-      .ypb_store_rsp_i      (ypb_store_rsp_i)
+      .ypb_store_rsp_i      (ypb_store_rsp_i),
+      //Trigger module
+      .sdtrig_store_stall_i (sdtrig_store_stall_i),
+      .sdtrig_store_action_i(sdtrig_store_action_i)
   );
 
   // ------------------
@@ -447,6 +464,7 @@ module load_store_unit
       .trans_id_o           (ld_trans_id),
       .result_o             (ld_result),
       .ex_o                 (ld_ex),
+      .mbe_i                (mbe_i),
       // MMU port
       .translation_req_o    (ld_translation_req),
       .vaddr_o              (ld_vaddr),
@@ -465,7 +483,11 @@ module load_store_unit
       // to memory arbiter
       .ypb_load_req_o       (ypb_load_req_o),
       .ypb_load_rsp_i       (ypb_load_rsp_i),
-      .dcache_wbuffer_not_ni_i
+      .dcache_wbuffer_not_ni_i,
+      //sdtrig
+      .sdtrig_load_stall_i  (sdtrig_load_stall_i),
+      .sdtrig_load_cancel_i (sdtrig_load_cancel_i),
+      .sdtrig_load_action_i (sdtrig_load_action_i)
   );
 
   // ----------------------------
@@ -751,7 +773,7 @@ module load_store_unit
       .ready_o   (lsu_ready_o)
   );
 
-  assign rvfi_lsu_ctrl_o = lsu_ctrl;
+  assign rvfi_lsu_ctrl_o  = lsu_ctrl;
   // Probe only: the translated address of the access currently presented to
   // the store buffer / AMO buffer. Pairing it with the access it belongs to is
   // done in cva6_rvfi.sv, no RVFI logic lives in the CPU RTL.

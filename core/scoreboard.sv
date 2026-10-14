@@ -56,7 +56,7 @@ module scoreboard #(
     input  logic              [CVA6Cfg.NrIssuePorts-1:0][31:0] orig_instr_i,
     // Handshake's valid with decode stage - ID_STAGE
     input  logic              [CVA6Cfg.NrIssuePorts-1:0]       decoded_instr_valid_i,
-    // Handshake's acknowlege with decode stage - ID_STAGE
+    // Handshake's acknowledge with decode stage - ID_STAGE
     output logic              [CVA6Cfg.NrIssuePorts-1:0]       decoded_instr_ack_o,
 
     // instruction to issue logic, if issue_instr_valid and issue_ready is asserted, advance the issue pointer
@@ -148,7 +148,7 @@ module scoreboard #(
     assign issue_pointer[i+1] = issue_pointer[i] + 'd1;
   end
 
-  // an instruction is ready for issue if we have place in the issue FIFO and it the decoder says it is valid
+  // an instruction is ready for issue if we have place in the issue FIFO and the decoder says it is valid
   always_comb begin
     issue_instr_o = decoded_instr_i;
     orig_instr_o  = orig_instr_i;
@@ -168,7 +168,7 @@ module scoreboard #(
     mem_n     = mem_q;
     num_issue = '0;
 
-    // if we got a acknowledge from the issue stage, put this scoreboard entry in the queue
+    // if we got an acknowledge from the issue stage, put this scoreboard entry in the queue
     for (int unsigned i = 0; i < CVA6Cfg.NrIssuePorts; i++) begin
       if (decoded_instr_valid_i[i] && decoded_instr_ack_o[i] && !flush_unissued_instr_i) begin
         // the decoded instruction we put in there is valid (1st bit)
@@ -217,8 +217,9 @@ module scoreboard #(
           if (x_we_i) mem_n[trans_id_i[i]].sbe.rd = x_rd_i;
           else mem_n[trans_id_i[i]].sbe.rd = 5'b0;
         end
-        // write the exception back if it is valid
-        if (ex_i[i].valid) mem_n[trans_id_i[i]].sbe.ex = ex_i[i];
+        // write the exception back if it is valid, or if it is a load data trigger
+        // break (timing set, valid clear), which lands on the next instruction
+        if (ex_i[i].valid || ex_i[i].timing) mem_n[trans_id_i[i]].sbe.ex = ex_i[i];
         // write the fflags back from the FPU (exception valid is never set), leave tval intact
         else if(CVA6Cfg.FpPresent && (mem_q[trans_id_i[i]].sbe.fu == ariane_pkg::FPU || mem_q[trans_id_i[i]].sbe.fu == ariane_pkg::FPU_VEC)) begin
           mem_n[trans_id_i[i]].sbe.ex.cause = ex_i[i].cause;
@@ -296,7 +297,7 @@ module scoreboard #(
   end
 
   assign fwd_o.still_issued = still_issued;
-  assign fwd_o.issue_pointer = issue_pointer;
+  assign fwd_o.issue_pointer = issue_pointer[0];
   assign fwd_o.wb = wb;
   for (genvar i = 0; i < CVA6Cfg.NR_SB_ENTRIES; i++) begin
     assign fwd_o.sbe[i] = mem_q[i].sbe;

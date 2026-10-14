@@ -44,6 +44,12 @@ package config_pkg;
     HPDCACHE_WT_WB = 4
   } cache_type_t;
 
+  /// Branch predictor parameter
+  typedef enum logic {
+    BHT = 0,  // Bimodal predictor
+    PH_BHT = 1  // Private History Bimodal predictor
+  } bp_type_t;
+
   /// Data and Address length
   typedef enum logic [3:0] {
     ModeOff  = 0,
@@ -71,7 +77,7 @@ package config_pkg;
     bit                          RVA;
     // Bit manipulation RISC-V extension
     bit                          RVB;
-    // Scalar Cryptography RISC-V entension
+    // Scalar Cryptography RISC-V extension
     bit                          ZKN;
     // Vector RISC-V extension
     bit                          RVV;
@@ -87,6 +93,8 @@ package config_pkg;
     bit                          RVZCMT;
     // Zicond RISC-V extension
     bit                          RVZiCond;
+    // Zicbom RISC-V extension (cache management / CBO)
+    bit                          RVZiCbom;
     // Zicntr RISC-V extension
     bit                          RVZicntr;
     // Zifencei RISC-V extension
@@ -123,6 +131,22 @@ package config_pkg;
     logic [63:0]                 HaltAddress;
     // Address to jump when exception
     logic [63:0]                 ExceptionAddress;
+    // Trigger Module Sdtrig Extension
+    bit                          Sdtrig;
+    bit                          SdtrigMcontrol6;
+    bit                          SdtrigMcontrol6ExecAddr;
+    bit                          SdtrigMcontrol6ExecData;
+    bit                          SdtrigMcontrol6Store;
+    bit                          SdtrigMcontrol6LoadAddr;
+    bit                          SdtrigMcontrol6LoadData;
+    bit                          SdtrigIcount;
+    bit                          SdtrigEtrigger;
+    bit                          SdtrigItrigger;
+    int                          SdtrigNrTriggers;
+    bit                          SdtrigTriggerChaining;
+    logic [1:0]                  SdtrigSupportedActions;
+    logic [9:0]                  SdtrigSupportedMatch;
+    bit                          SdtrigSupportTextra;
     // Tval Support Enable
     bit                          TvalEn;
     // MTVEC CSR supports only direct mode
@@ -187,10 +211,17 @@ package config_pkg;
     int unsigned                 DcacheSetAssoc;
     // Data cache line width
     int unsigned                 DcacheLineWidth;
-    // Data cache flush on fence
+    // three configurations for cache coherency after flush:
+    // DcacheFlushOnFence causes dcache flush for every fence instruction
+    // DcacheFlushOnFenceI causes dcache flush for every fence.I instruction
+    // DcacheInvalidateOnFlush causes dcache to also be invalidated when flushed
     bit                          DcacheFlushOnFence;
-    // Data cache invalidate on flush
+    bit                          DcacheFlushOnFenceI;
     bit                          DcacheInvalidateOnFlush;
+    // Is Error Detection and Correction enabled in the L1D ?
+    bit                          DcacheEccEnable;
+    // Is Error Detection and Correction scrubber integrated in the L1D ?
+    bit                          DcacheEccScrubberEnable;
     // User field on data bus enable
     bit                          DataUserEn;
     // Write-through data cache write buffer depth
@@ -203,10 +234,12 @@ package config_pkg;
     bit                          FpgaEn;
     // Is FPGA optimization for Altera FPGA
     bit                          FpgaAlteraEn;
-    // Is Techno Cut instanciated
+    // Is Techno Cut instantiated
     bit                          TechnoCut;
     // Enable superscalar* with 2 issue ports and 2 commit ports.
     bit                          SuperscalarEn;
+    // Enable ALU-ALU bypass (superscalar mode only)
+    bit                          ALUBypass;
     // Number of commit ports. Forced to 2 if SuperscalarEn.
     int unsigned                 NrCommitPorts;
     // Load cycle latency number
@@ -223,8 +256,12 @@ package config_pkg;
     int unsigned                 RASDepth;
     // Branch target buffer entries
     int unsigned                 BTBEntries;
+    // Branch predictor type
+    bp_type_t                    BPType;
     // Branch history entries
     int unsigned                 BHTEntries;
+    // Branch history bits
+    int unsigned                 BHTHist;
     // MMU instruction TLB entries
     int unsigned                 InstrTlbEntries;
     // MMU data TLB entries
@@ -233,6 +270,8 @@ package config_pkg;
     bit unsigned                 UseSharedTlb;
     // MMU depth of shared TLB
     int unsigned                 SharedTlbDepth;
+    // Option to enable Svnapot extension
+    bit                          SvnapotEn;
     // OBI version compliance, 0 means not compliant -> best performance
     int unsigned                 ObiVersion;
     // Configuration defines cva6_pipeline module as top instead of cva6 (no cache and OBI instead of AXI)
@@ -270,6 +309,9 @@ package config_pkg;
     int unsigned NrIssuePorts;
     bit          SpeculativeSb;
 
+    int unsigned NrALUs;
+    bit          ALUBypass;
+
     int unsigned NrLoadPipeRegs;
     int unsigned NrStorePipeRegs;
     /// AXI parameters.
@@ -298,6 +340,7 @@ package config_pkg;
     bit          CvxifEn;
     copro_type_t CoproType;
     bit          RVZiCond;
+    bit          RVZiCbom;
     bit          RVZicntr;
     bit          RVZifencei;
     bit          RVZihpm;
@@ -325,36 +368,55 @@ package config_pkg;
     logic [63:0] ExceptionAddress;
     int unsigned RASDepth;
     int unsigned BTBEntries;
+    bp_type_t    BPType;
     int unsigned BHTEntries;
+    int unsigned BHTHist;
     int unsigned InstrTlbEntries;
     int unsigned DataTlbEntries;
     bit unsigned UseSharedTlb;
+    bit SvnapotEn;
     int unsigned SharedTlbDepth;
     int unsigned VpnLen;
     int unsigned PtLevels;
 
-    logic [63:0]                 DmBaseAddress;
-    bit                          TvalEn;
-    bit                          DirectVecOnly;
-    int unsigned                 NrPMPEntries;
-    logic [63:0][63:0]           PMPCfgRstVal;
-    logic [63:0][63:0]           PMPAddrRstVal;
-    bit [63:0]                   PMPEntryReadOnly;
-    bit                          PMPNapotEn;
-    noc_type_e                   NOCType;
-    int unsigned                 NrNonIdempotentRules;
+    logic [63:0] DmBaseAddress;
+    // Trigger Module Sdtrig Extension
+    bit Sdtrig;
+    bit SdtrigMcontrol6;
+    bit SdtrigMcontrol6ExecAddr;
+    bit SdtrigMcontrol6ExecData;
+    bit SdtrigMcontrol6Store;
+    bit SdtrigMcontrol6LoadAddr;
+    bit SdtrigMcontrol6LoadData;
+    bit SdtrigIcount;
+    bit SdtrigEtrigger;
+    bit SdtrigItrigger;
+    int SdtrigNrTriggers;
+    bit SdtrigTriggerChaining;
+    logic [1:0] SdtrigSupportedActions;
+    logic [9:0] SdtrigSupportedMatch;
+    bit SdtrigSupportTextra;
+    bit TvalEn;
+    bit DirectVecOnly;
+    int unsigned NrPMPEntries;
+    logic [63:0][63:0] PMPCfgRstVal;
+    logic [63:0][63:0] PMPAddrRstVal;
+    bit [63:0] PMPEntryReadOnly;
+    bit PMPNapotEn;
+    noc_type_e NOCType;
+    int unsigned NrNonIdempotentRules;
     logic [NrMaxRules-1:0][63:0] NonIdempotentAddrBase;
     logic [NrMaxRules-1:0][63:0] NonIdempotentLength;
-    int unsigned                 NrExecuteRegionRules;
+    int unsigned NrExecuteRegionRules;
     logic [NrMaxRules-1:0][63:0] ExecuteRegionAddrBase;
     logic [NrMaxRules-1:0][63:0] ExecuteRegionLength;
-    int unsigned                 NrCachedRegionRules;
+    int unsigned NrCachedRegionRules;
     logic [NrMaxRules-1:0][63:0] CachedRegionAddrBase;
     logic [NrMaxRules-1:0][63:0] CachedRegionLength;
-    int unsigned                 MaxOutstandingStores;
-    bit                          DebugEn;
-    bit                          NonIdemPotenceEn;       // Currently only used by V extension (Ara)
-    bit                          AxiBurstWriteEn;
+    int unsigned MaxOutstandingStores;
+    bit DebugEn;
+    bit NonIdemPotenceEn;  // Currently only used by V extension (Ara)
+    bit AxiBurstWriteEn;
 
     int unsigned ICACHE_SET_ASSOC;
     int unsigned ICACHE_SET_ASSOC_WIDTH;
@@ -375,7 +437,10 @@ package config_pkg;
     int unsigned DCACHE_NUM_WORDS;
 
     bit DcacheFlushOnFence;
+    bit DcacheFlushOnFenceI;
     bit DcacheInvalidateOnFlush;
+    bit DcacheEccEnable;
+    bit DcacheEccScrubberEnable;
 
     bit          DATA_USER_EN;
     int unsigned WtDcacheWbufDepth;
@@ -461,6 +526,11 @@ package config_pkg;
     assert (!(Cfg.RVH && !Cfg.SoftwareInterruptEn))
     else `ASSERT_FATAL("");
     assert (!(Cfg.RVZCMT && Cfg.MmuPresent))
+    else `ASSERT_FATAL("");
+    // Zcmp is incompatible with Zcd (compressed double-precision FP loads and
+    // stores, automatically present whenever both C and D are implemented),
+    // the two reusing the same opcodes.
+    assert (!(Cfg.RVZCMP && Cfg.RVC && Cfg.RVD))
     else `ASSERT_FATAL("");
     // pragma translate_on
   endfunction

@@ -23,8 +23,6 @@ module id_stage #(
     parameter type jvt_t = logic,
     parameter type irq_ctrl_t = logic,
     parameter type scoreboard_entry_t = logic,
-    parameter type interrupts_t = logic,
-    parameter interrupts_t INTERRUPTS = '0,
     parameter type x_compressed_req_t = logic,
     parameter type x_compressed_resp_t = logic
 ) (
@@ -38,6 +36,8 @@ module id_stage #(
     input logic debug_req_i,
     // Handshake's data between fetch and decode - FRONTEND
     input fetch_entry_t [CVA6Cfg.NrIssuePorts-1:0] fetch_entry_i,
+    // mcontrol6 execute match exception request - TRIGGER MODULE
+    input logic [CVA6Cfg.XLEN-1:0] sdtrig_decoder_action_i[CVA6Cfg.NrIssuePorts],
     // Handshake's valid between fetch and decode - FRONTEND
     input logic [CVA6Cfg.NrIssuePorts-1:0] fetch_entry_valid_i,
     // Handshake's ready between fetch and decode - FRONTEND
@@ -53,7 +53,7 @@ module id_stage #(
     output logic [CVA6Cfg.NrIssuePorts-1:0] issue_entry_valid_o,
     // Report if instruction is a control flow instruction - ISSUE
     output logic [CVA6Cfg.NrIssuePorts-1:0] is_ctrl_flow_o,
-    // Handshake's acknowlege between decode and issue - ISSUE
+    // Handshake's acknowledge between decode and issue - ISSUE
     input logic [CVA6Cfg.NrIssuePorts-1:0] issue_instr_ack_i,
     output logic [CVA6Cfg.NrIssuePorts-1:0] rvfi_is_compressed_o,
     // Current privilege level - CSR_REGFILE
@@ -84,6 +84,18 @@ module id_stage #(
     input logic tsr_i,
     // Hypervisor user mode - CSR_REGFILE
     input logic hu_i,
+    // machine-mode cache block invalidate enable - CSR_REGFILE
+    input riscv::cbie_t mcbie_i,
+    // supervisor-mode cache block invalidate enable - CSR_REGFILE
+    input riscv::cbie_t scbie_i,
+    // hypervisor-mode cache block invalidate enable - CSR_REGFILE
+    input riscv::cbie_t hcbie_i,
+    // machine-mode clean/flush cache block invalidate enable - CSR_REGFILE
+    input logic mcbcfe_i,
+    // supervisor-mode clean/flush cache block invalidate enable - CSR_REGFILE
+    input logic scbcfe_i,
+    // hypervisor-mode clean/flush cache block invalidate enable - CSR_REGFILE
+    input logic hcbcfe_i,
     // CVXIF Compressed interface
     input logic [CVA6Cfg.XLEN-1:0] hart_id_i,
     input logic compressed_ready_i,
@@ -97,6 +109,8 @@ module id_stage #(
 
 
 );
+
+
   // ID/ISSUE register stage
   typedef struct packed {
     logic              valid;
@@ -238,7 +252,7 @@ module id_stage #(
       assign is_illegal_cvxif_i = is_zcmt_instr[0] ? is_illegal_zcmt : is_illegal_zcmp;
       assign is_compressed_cvxif_i = is_zcmt_instr[0] ? is_compressed_zcmt : is_compressed_zcmp;
       assign stall_macro_deco = is_zcmt_instr[0] ? stall_macro_deco_zcmt : stall_macro_deco_zcmp;
-    end else begin  // Do not instantiate the mux which is not optimized cross-bondaries
+    end else begin  // Do not instantiate the mux which is not optimized cross-boundaries
       assign instruction_cvxif_i = instruction_zcmp;
       assign is_illegal_cvxif_i = is_illegal_zcmp;
       assign is_compressed_cvxif_i = is_compressed_zcmp;
@@ -272,7 +286,12 @@ module id_stage #(
       assign stall_instr_fetch[0] = stall_macro_deco;
     end
   end else begin
-    assign stall_instr_fetch[0] = '0;
+    for (genvar i = 0; i < CVA6Cfg.NrIssuePorts; i++) begin
+      assign is_illegal_rvc[i] = 1'b0;
+      assign instruction_rvc[i] = fetch_entry_i[i].instruction;
+      assign is_compressed_rvc[i] = 1'b0;
+      assign stall_instr_fetch[i] = 1'b0;
+    end
   end
 
   // ---------------------------------------------------------
@@ -288,14 +307,16 @@ module id_stage #(
       instruction_deco[1] = CVA6Cfg.RVC ? instruction_rvc[1] : fetch_entry_i[1].instruction;
     end
 
-    if (CVA6Cfg.CvxifEn) begin
-      is_illegal_deco[0]    = is_illegal_cvxif_o;
-      instruction_deco[0]   = instruction_cvxif_o;
-      is_compressed_deco[0] = is_compressed_cvxif_o;
-    end else if (!CVA6Cfg.CvxifEn && (CVA6Cfg.RVZCMP || CVA6Cfg.RVZCMT)) begin
-      is_illegal_deco[0]    = is_illegal_cvxif_i;
-      instruction_deco[0]   = instruction_cvxif_i;
-      is_compressed_deco[0] = is_compressed_cvxif_i;
+    if (CVA6Cfg.RVC) begin
+      if (CVA6Cfg.CvxifEn) begin
+        is_illegal_deco[0]    = is_illegal_cvxif_o;
+        instruction_deco[0]   = instruction_cvxif_o;
+        is_compressed_deco[0] = is_compressed_cvxif_o;
+      end else if (CVA6Cfg.RVZCMP || CVA6Cfg.RVZCMT) begin
+        is_illegal_deco[0]    = is_illegal_cvxif_i;
+        instruction_deco[0]   = instruction_cvxif_i;
+        is_compressed_deco[0] = is_compressed_cvxif_i;
+      end
     end
   end
 
@@ -307,9 +328,7 @@ module id_stage #(
         .branchpredict_sbe_t(branchpredict_sbe_t),
         .exception_t(exception_t),
         .irq_ctrl_t(irq_ctrl_t),
-        .scoreboard_entry_t(scoreboard_entry_t),
-        .interrupts_t(interrupts_t),
-        .INTERRUPTS(INTERRUPTS)
+        .scoreboard_entry_t(scoreboard_entry_t)
     ) decoder_i (
         .debug_req_i,
         .irq_ctrl_i,
@@ -326,6 +345,7 @@ module id_stage #(
         .compressed_instr_i        (fetch_entry_i[i].instruction[15:0]),
         .branch_predict_i          (fetch_entry_i[i].branch_predict),
         .ex_i                      (fetch_entry_i[i].ex),
+        .sdtrig_decoder_action_i   (sdtrig_decoder_action_i[i]),
         .priv_lvl_i                (priv_lvl_i),
         .v_i                       (v_i),
         .debug_mode_i              (debug_mode_i),
@@ -338,6 +358,12 @@ module id_stage #(
         .vtw_i,
         .tsr_i,
         .hu_i,
+        .mcbie_i,
+        .scbie_i,
+        .hcbie_i,
+        .mcbcfe_i,
+        .scbcfe_i,
+        .hcbcfe_i,
         .instruction_o             (decoded_instruction[i]),
         .orig_instr_o              (orig_instr[i]),
         .is_control_flow_instr_o   (is_control_flow_instr[i])

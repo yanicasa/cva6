@@ -53,6 +53,8 @@ module load_unit
     output logic          [         CVA6Cfg.XLEN-1:0] result_o,
     // Load exception - ISSUE_STAGE
     output exception_t                                ex_o,
+    // Data Endian mode - CSR_REGFILE
+    input  logic                                      mbe_i,
     // Request address translation - MMU/PMP
     output logic                                      translation_req_o,
     // Virtual address - MMU/PMP
@@ -85,7 +87,11 @@ module load_unit
     input  ypb_load_rsp_t                             ypb_load_rsp_i,
 
     // Presence of non-idempotent operations in the D$ write buffer - CACHES
-    input logic dcache_wbuffer_not_ni_i
+    input logic dcache_wbuffer_not_ni_i,
+    //Trigger module
+    input logic sdtrig_load_stall_i,
+    input logic sdtrig_load_cancel_i,
+    input logic [CVA6Cfg.XLEN-1:0] sdtrig_load_action_i
 );
 
   // in order to decouple the response interface from the request interface,
@@ -114,6 +120,11 @@ module load_unit
   logic ldbuf_empty, ldbuf_full;
   ldbuf_id_t ldbuf_free_index;
   logic ldbuf_w, ldbuf_w_q;
+
+  // Transaction id of the load a trigger matched on, captured at the match:
+  // the trigger module reports its cancel one cycle later, when lsu_ctrl_i
+  // already presents the next request.
+  logic [CVA6Cfg.TRANS_ID_BITS-1:0] sdtrig_trans_id_d, sdtrig_trans_id_q;
   ldbuf_id_t ldbuf_windex, ldbuf_windex_q;
   logic      ldbuf_r;
   ldbuf_t    ldbuf_rdata;
@@ -154,10 +165,6 @@ module load_unit
     ldbuf_flushed_d = ldbuf_flushed_q;
     ldbuf_valid_d   = ldbuf_valid_q;
 
-    //  In case of flush, raise the flushed flag in all slots.
-    if (flush_i) begin
-      ldbuf_flushed_d = '1;
-    end
     //  Free read entry (in the case of fall-through mode, free the entry
     //  only if there is no pending load)
     if (ldbuf_r && (!LDBUF_FALLTHROUGH || !ldbuf_w)) begin
@@ -172,17 +179,25 @@ module load_unit
       ldbuf_flushed_d[ldbuf_windex] = 1'b0;
       ldbuf_valid_d[ldbuf_windex]   = 1'b1;
     end
+    //  In case of flush, raise the flushed flag in all slots, including a slot
+    //  allocated in the same cycle: this branch comes after ldbuf_w so that it
+    //  wins.
+    if (flush_i) begin
+      ldbuf_flushed_d = '1;
+    end
   end
 
   always_ff @(posedge clk_i or negedge rst_ni) begin : ldbuf_ff
     if (!rst_ni) begin
-      ldbuf_flushed_q <= '0;
-      ldbuf_valid_q   <= '0;
-      ldbuf_last_id_q <= '0;
-      ldbuf_q         <= '0;
+      ldbuf_flushed_q   <= '0;
+      ldbuf_valid_q     <= '0;
+      ldbuf_last_id_q   <= '0;
+      ldbuf_q           <= '0;
+      sdtrig_trans_id_q <= '0;
     end else begin
       ldbuf_flushed_q <= ldbuf_flushed_d;
-      ldbuf_valid_q   <= ldbuf_valid_d;
+      ldbuf_valid_q <= ldbuf_valid_d;
+      sdtrig_trans_id_q <= sdtrig_trans_id_d;
       if (ldbuf_w) begin
         ldbuf_last_id_q                      <= ldbuf_windex;
         ldbuf_q[ldbuf_windex].trans_id       <= lsu_ctrl_i.trans_id;
@@ -206,8 +221,16 @@ module load_unit
   assign ypb_load_req_o.vaddr = lsu_ctrl_i.vaddr;
 
   // directly forward exception fields (valid bit is set below)
-  assign ex_o.cause = ex_i.cause;
-  assign ex_o.tval = ex_i.tval;
+  // A load trigger reports its own cause and the faulting address. The load
+  // data trigger is the one imprecise case: the value it compares only exists
+  // once the load has returned, so it breaks after the instruction rather than
+  // on it, which is what ex_o.timing says.
+  //  An error on the response takes precedence over the MMU and trigger causes.
+  assign ex_o.cause = ypb_load_rsp_i.err                ? riscv::HARDWARE_ERROR :
+                      (sdtrig_load_action_i != '0)      ? sdtrig_load_action_i  :
+                                                          ex_i.cause;
+  assign ex_o.tval = (CVA6Cfg.TvalEn && (sdtrig_load_action_i != '0)) ? {{CVA6Cfg.XLEN - CVA6Cfg.VLEN{1'b0}}, lsu_ctrl_i.vaddr} : ex_i.tval;
+  assign ex_o.timing = (sdtrig_load_stall_i && ypb_load_rsp_i.rvalid && sdtrig_load_action_i != '0) ? 1'b1 : 1'b0;
   assign ex_o.tval2 = CVA6Cfg.RVH ? ex_i.tval2 : '0;
   assign ex_o.tinst = CVA6Cfg.RVH ? ex_i.tinst : '0;
   assign ex_o.gva = CVA6Cfg.RVH ? ex_i.gva : 1'b0;
@@ -238,7 +261,7 @@ module load_unit
   // Check that NI operations follow the necessary conditions
   logic not_commit_time;
   logic inflight_stores;
-  logic stall_ni;
+  logic stall_ni, stall_ni_mem;
   assign not_commit_time = commit_tran_id_i != lsu_ctrl_i.trans_id;
   assign inflight_stores = (!dcache_wbuffer_not_ni_i || !store_buffer_empty_i);
 
@@ -258,7 +281,16 @@ module load_unit
 
   assign ypb_load_req_o.kill_req = kill_req_q || kill_s1;
 
-  assign stall_ni = (inflight_stores || not_commit_time) && (paddr_nonidempotent && CVA6Cfg.NonIdemPotenceEn);
+  // Non-idempotent stall, which gates the request itself: such a load must not
+  // leave until it is the oldest in flight.
+  assign stall_ni_mem = (inflight_stores || not_commit_time) && (paddr_nonidempotent && CVA6Cfg.NonIdemPotenceEn);
+  // A trigger stall does not gate the request: the trigger module releases it
+  // only on the exception this unit reports, so the request goes out and is
+  // killed instead.
+  assign stall_ni = stall_ni_mem || sdtrig_load_stall_i;
+  // Capture while the request is still the one being presented.
+  assign sdtrig_trans_id_d = (valid_i && sdtrig_load_action_i != '0) ? lsu_ctrl_i.trans_id
+                                                                    : sdtrig_trans_id_q;
   assign stall_ypb = (ypb_a_state_q == REGISTRED);  //&& !ypb_load_rsp_i.pgnt;
   assign stall_translation = CVA6Cfg.MmuPresent ? translation_req_o && !dtlb_hit_i : 1'b0;
 
@@ -281,13 +313,17 @@ module load_unit
     ex_o.valid = 1'b0;
     pop_ld_o = 1'b0; // release lsu_bypass fifo
 
+    // A load trigger asked for a break: raise the exception at once, which is
+    // what releases the trigger stall.
+    if (sdtrig_load_stall_i && sdtrig_load_action_i != '0) ex_o.valid = 1'b1;
+
     // REQUEST
     if (valid_i) begin
       translation_req_o = 1'b1;
       if (!page_offset_matches_i) begin
-        ypb_load_req_o.vreq = !stall_translation && !stall_ni;
+        ypb_load_req_o.vreq = !stall_translation && !stall_ni_mem;
         if (!CVA6Cfg.MmuPresent || ypb_load_rsp_i.vgnt) begin
-          if (stall_translation || stall_ni || stall_ypb || ldbuf_full || flush_i) begin
+          if (stall_translation || stall_ni || stall_ypb || ldbuf_full || flush_i || sdtrig_load_cancel_i) begin
             kill_req_d = 1'b1;  // MmuPresent only: next cycle is s2 but we need to kill because not ready to send tag
           end else begin
             ldbuf_w  = CVA6Cfg.MmuPresent ? 1'b1 : !ex_s1;  // record request into outstanding load fifo and trigger physical request
@@ -299,17 +335,20 @@ module load_unit
       kill_req_d = ldbuf_flushed_q;  //if there was a flush, a request might have started s0
     end
     // RETIRE LOAD
-    // we got an rvalid and it's corresponding request was not flushed
+    // we got an rvalid and its corresponding request was not flushed
     if (data_rvalid) begin
       trans_id_o = ldbuf_q[ldbuf_rindex].trans_id;
       valid_o    = 1'b1;
-      ex_o.valid = 1'b0;
+      //  The response carries an error: retire the load as an exception rather
+      //  than writing a corrupt value back.
+      ex_o.valid = ypb_load_rsp_i.err;
       // RETIRE EXCEPTION (low priority)
-    end else if (ex_s1) begin
-      trans_id_o = CVA6Cfg.MmuPresent ? ldbuf_q[ldbuf_windex_q].trans_id : lsu_ctrl_i.trans_id;
-      valid_o    = 1'b1;
+    end else if (ex_s1 || sdtrig_load_cancel_i) begin
+      trans_id_o = (CVA6Cfg.SdtrigMcontrol6LoadAddr && sdtrig_load_cancel_i) ? sdtrig_trans_id_q :
+                   (CVA6Cfg.MmuPresent ? ldbuf_q[ldbuf_windex_q].trans_id : lsu_ctrl_i.trans_id);
+      valid_o = 1'b1;
       ex_o.valid = 1'b1;
-      pop_ld_o = !stall_translation;//1'b1; // release lsu_bypass fifo
+      pop_ld_o = !stall_translation;  //1'b1; // release lsu_bypass fifo
       // RETIRE EXCEPTION (low priority)
     end else if (CVA6Cfg.MmuPresent && ex_s0) begin
       trans_id_o = lsu_ctrl_i.trans_id;
@@ -328,7 +367,7 @@ module load_unit
   // request, so the registered byte enable is the one belonging to it.
   assign ypb_load_req_o.be = (ypb_a_state_q == TRANSPARENT) && valid_i && !CVA6Cfg.MmuPresent
                              ? lsu_ctrl_i.be : be_q;
-  assign ypb_load_req_o.size = (CVA6Cfg.XLEN == 64) ? ariane_pkg::size_gen(
+  assign ypb_load_req_o.size = (CVA6Cfg.IS_XLEN64) ? ariane_pkg::size_gen(
       ypb_load_req_o.be
   ) : ariane_pkg::size_gen_32(
       ypb_load_req_o.be
@@ -336,6 +375,7 @@ module load_unit
   assign ypb_load_req_o.wdata = '0;
   assign ypb_load_req_o.aid = (!CVA6Cfg.MmuPresent && (ypb_a_state_q == TRANSPARENT)) ? ldbuf_windex : ldbuf_windex_q;
   assign ypb_load_req_o.atop = ariane_pkg::AMO_NONE;
+  assign ypb_load_req_o.cbo_op = ariane_pkg::CBO_NONE;
   assign ypb_load_req_o.cacheable = paddr_is_cacheable;
   assign ypb_load_req_o.access_type = 1'b1;  //data
 
@@ -426,6 +466,36 @@ module load_unit
         endcase
     end  */
 
+  // BIG ENDIAN CAPABLE result mux fast
+  logic [CVA6Cfg.XLEN-1:0] endian_data;
+
+  // The internals of CVA6 are little endian. When mbe is set the processor
+  // treats data memory as big endian, so the byte order is reversed as the
+  // data enters the core through a load.
+  always_comb begin
+    endian_data = shifted_data;
+    if (mbe_i) begin
+      case (ldbuf_rdata.operation)
+        ariane_pkg::LB, ariane_pkg::LBU, ariane_pkg::HLV_B, ariane_pkg::HLV_BU, ariane_pkg::FLB: begin
+          // a single byte needs no reordering
+          endian_data[7:0] = {shifted_data[7:0]};
+        end
+        ariane_pkg::LH, ariane_pkg::LHU, ariane_pkg::HLV_H, ariane_pkg::HLV_HU, ariane_pkg::HLVX_HU, ariane_pkg::FLH: begin
+          endian_data[15:0] = {<<8{shifted_data[15:0]}};
+        end
+        ariane_pkg::LW, ariane_pkg::LWU, ariane_pkg::HLV_W, ariane_pkg::HLV_WU, ariane_pkg::HLVX_WU, ariane_pkg::FLW,
+        ariane_pkg::AMO_LRW, ariane_pkg::AMO_SCW, ariane_pkg::AMO_SWAPW, ariane_pkg::AMO_ADDW,
+        ariane_pkg::AMO_ANDW, ariane_pkg::AMO_ORW, ariane_pkg::AMO_XORW, ariane_pkg::AMO_MAXW,
+        ariane_pkg::AMO_MAXWU, ariane_pkg::AMO_MINW, ariane_pkg::AMO_MINWU: begin
+          endian_data[31:0] = {<<8{shifted_data[31:0]}};
+        end
+        default: begin
+          endian_data[CVA6Cfg.XLEN-1:0] = {<<8{shifted_data[CVA6Cfg.XLEN-1:0]}};
+        end
+      endcase
+    end
+  end
+
   // result mux fast
   logic [        (CVA6Cfg.XLEN/8)-1:0] rdata_sign_bits;
   logic [CVA6Cfg.XLEN_ALIGN_BYTES-1:0] rdata_offset;
@@ -435,8 +505,10 @@ module load_unit
   // prepare these signals for faster selection in the next cycle
   assign rdata_is_signed    =   ldbuf_rdata.operation inside {ariane_pkg::LW,  ariane_pkg::LH,  ariane_pkg::LB, ariane_pkg::HLV_W, ariane_pkg::HLV_H, ariane_pkg::HLV_B};
   assign rdata_is_fp_signed =   ldbuf_rdata.operation inside {ariane_pkg::FLW, ariane_pkg::FLH, ariane_pkg::FLB};
-  assign rdata_offset       = ((ldbuf_rdata.operation inside {ariane_pkg::LW,  ariane_pkg::FLW, ariane_pkg::HLV_W}) & CVA6Cfg.IS_XLEN64) ? ldbuf_rdata.address_offset + 3 :
-                                ( ldbuf_rdata.operation inside {ariane_pkg::LH,  ariane_pkg::FLH, ariane_pkg::HLV_H})                     ? ldbuf_rdata.address_offset + 1 :
+  // In big endian mode nothing is added to the offset to reach the byte that
+  // holds the sign bit: it is always the lowest addressed one.
+  assign rdata_offset       = ((ldbuf_rdata.operation inside {ariane_pkg::LW,  ariane_pkg::FLW, ariane_pkg::HLV_W}) && CVA6Cfg.IS_XLEN64 && (~mbe_i)) ? ldbuf_rdata.address_offset + 3 :
+                                ( ldbuf_rdata.operation inside {ariane_pkg::LH,  ariane_pkg::FLH, ariane_pkg::HLV_H} && (~mbe_i))                     ? ldbuf_rdata.address_offset + 1 :
                                                                                                                          ldbuf_rdata.address_offset;
 
   for (genvar i = 0; i < (CVA6Cfg.XLEN / 8); i++) begin : gen_sign_bits
@@ -446,29 +518,29 @@ module load_unit
 
   // select correct sign bit in parallel to result shifter above
   // pull to 0 if unsigned
-  assign rdata_sign_bit = rdata_is_signed & rdata_sign_bits[rdata_offset] | (CVA6Cfg.FpPresent && rdata_is_fp_signed);
+  assign rdata_sign_bit = (rdata_is_signed && rdata_sign_bits[rdata_offset]) || (CVA6Cfg.FpPresent && rdata_is_fp_signed);
 
   // result mux
   always_comb begin
     unique case (ldbuf_rdata.operation)
       ariane_pkg::LW, ariane_pkg::LWU, ariane_pkg::HLV_W, ariane_pkg::HLV_WU, ariane_pkg::HLVX_WU:
-      result_o = {{CVA6Cfg.XLEN - 32{rdata_sign_bit}}, shifted_data[31:0]};
+      result_o = {{CVA6Cfg.XLEN - 32{rdata_sign_bit}}, endian_data[31:0]};
       ariane_pkg::LH, ariane_pkg::LHU, ariane_pkg::HLV_H, ariane_pkg::HLV_HU, ariane_pkg::HLVX_HU:
-      result_o = {{CVA6Cfg.XLEN - 32 + 16{rdata_sign_bit}}, shifted_data[15:0]};
+      result_o = {{CVA6Cfg.XLEN - 32 + 16{rdata_sign_bit}}, endian_data[15:0]};
       ariane_pkg::LB, ariane_pkg::LBU, ariane_pkg::HLV_B, ariane_pkg::HLV_BU:
-      result_o = {{CVA6Cfg.XLEN - 32 + 24{rdata_sign_bit}}, shifted_data[7:0]};
+      result_o = {{CVA6Cfg.XLEN - 32 + 24{rdata_sign_bit}}, endian_data[7:0]};
       default: begin
         // FLW, FLH and FLB have been defined here in default case to improve Code Coverage
         if (CVA6Cfg.FpPresent) begin
           unique case (ldbuf_rdata.operation)
             ariane_pkg::FLW: begin
-              result_o = {{CVA6Cfg.XLEN - 32{rdata_sign_bit}}, shifted_data[31:0]};
+              result_o = {{CVA6Cfg.XLEN - 32{rdata_sign_bit}}, endian_data[31:0]};
             end
             ariane_pkg::FLH: begin
-              result_o = {{CVA6Cfg.XLEN - 32 + 16{rdata_sign_bit}}, shifted_data[15:0]};
+              result_o = {{CVA6Cfg.XLEN - 32 + 16{rdata_sign_bit}}, endian_data[15:0]};
             end
             ariane_pkg::FLB: begin
-              result_o = {{CVA6Cfg.XLEN - 32 + 24{rdata_sign_bit}}, shifted_data[7:0]};
+              result_o = {{CVA6Cfg.XLEN - 32 + 24{rdata_sign_bit}}, endian_data[7:0]};
             end
             default: begin
               result_o = shifted_data[CVA6Cfg.XLEN-1:0];
@@ -494,11 +566,11 @@ module load_unit
   addr_offset0 :
   assert property (@(posedge clk_i) disable iff (~rst_ni)
         ldbuf_w_q |->  (ldbuf_q[ldbuf_windex_q].operation inside {ariane_pkg::LW, ariane_pkg::LWU}) |-> ldbuf_q[ldbuf_windex_q].address_offset < 5)
-  else `ASSERT_FATAL("invalid address offset used with {LW, LWU}");
+  else `ASSERT_WARNING("invalid address offset used with {LW, LWU}");
   addr_offset1 :
   assert property (@(posedge clk_i) disable iff (~rst_ni)
         ldbuf_w_q |->  (ldbuf_q[ldbuf_windex_q].operation inside {ariane_pkg::LH, ariane_pkg::LHU}) |-> ldbuf_q[ldbuf_windex_q].address_offset < 7)
-  else `ASSERT_FATAL("invalid address offset used with {LH, LHU}");
+  else `ASSERT_WARNING("invalid address offset used with {LH, LHU}");
   addr_offset2 :
   assert property (@(posedge clk_i) disable iff (~rst_ni)
         ldbuf_w_q |->  (ldbuf_q[ldbuf_windex_q].operation inside {ariane_pkg::LB, ariane_pkg::LBU}) |-> ldbuf_q[ldbuf_windex_q].address_offset < 8)
