@@ -20,6 +20,7 @@ module macro_decoder #(
     input  logic [31:0] instr_i,
     input  logic        clk_i,                      // Clock
     input  logic        rst_ni,                     // Synchronous reset
+    input  logic        flush_i,                    // Drop a macro instruction being expanded
     input  logic        is_macro_instr_i,           // Instruction is of macro extension
     input  logic        illegal_instr_i,            // From compressed decoder
     input  logic        is_compressed_i,
@@ -622,7 +623,9 @@ module macro_decoder #(
       reg_numbers_q <= '0;
       store_reg_q <= '0;
     end else begin
-      state_q <= state_d;
+      // A flushed macro instruction leaves its expansion: the next one starts
+      // from IDLE, not from the micro-op the flushed one stopped at
+      state_q <= flush_i ? IDLE : state_d;
       offset_q <= offset_d;
       reg_numbers_q <= reg_numbers_d;
       store_reg_q <= store_reg_d;

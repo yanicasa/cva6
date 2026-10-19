@@ -199,6 +199,7 @@ module id_stage #(
           .is_macro_instr_i          (is_macro_instr[0]),
           .clk_i                     (clk_i),
           .rst_ni                    (rst_ni),
+          .flush_i                   (flush_i),
           .instr_o                   (instruction_zcmp),
           .illegal_instr_i           (is_illegal_rvc[0]),
           .is_compressed_i           (is_compressed_rvc[0]),
