@@ -411,7 +411,9 @@ module load_unit
       trans_id_o = lsu_ctrl_i.trans_id;
       valid_o    = 1'b1;
       ex_o.valid = 1'b1;
-      pop_ld_o = !stall_translation;//1'b1; // release lsu_bypass fifo
+      // The faulting load leaves the lsu_bypass fifo: a load dropped by the
+      // speculative scoreboard is not flushed out of it.
+      pop_ld_o = 1'b1;
     end else if (ni_load_dropped) begin
       trans_id_o = lsu_ctrl_i.trans_id;
       valid_o    = 1'b1;
