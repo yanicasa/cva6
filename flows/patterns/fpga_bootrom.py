@@ -94,6 +94,11 @@ BOOTROM_SRC = [
 ]
 
 
+def bootrom_out_dir(repo_dir, board, xlen):
+    """Directory of the zero stage bootloader of a board and a width."""
+    return repo_dir / "build" / "bootrom" / board.value / f"rv{xlen}"
+
+
 def _write_dts(dts_in, dts_out, defines, has_ethernet):
     """
     Resolve the device tree template of the board.
@@ -162,11 +167,6 @@ def fpga_bootrom(
 
     repo_dir = Path.cwd()
     bootrom_dir = repo_dir / "corev_apu" / "fpga" / "src" / "bootrom"
-    # One ROM per width and per board: the width selects the sources, the
-    # board the parameters compiled into the device tree.
-    out_dir = repo_dir / "build" / "bootrom" / board.value
-    report.set_out_dir(out_dir)
-
     params = any_board_params(board)
 
     # ==========================================================
@@ -195,6 +195,12 @@ def fpga_bootrom(
             )
     if xlen not in BOOTROM_MARCH:
         report.error_exit(f"Unsupported register width: {xlen}", env=True)
+
+    # One ROM per width and per board: the width selects the sources, the
+    # board the parameters compiled into the device tree. A directory per
+    # width, so the RV32 and RV64 images of a board build side by side.
+    out_dir = bootrom_out_dir(repo_dir, board, xlen)
+    report.set_out_dir(out_dir)
 
     test_name = f"bootrom_{xlen}"
     march = BOOTROM_MARCH[xlen]

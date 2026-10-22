@@ -44,7 +44,7 @@ import typer
 
 from flows.patterns.coremark import coremark
 from flows.patterns.dhrystone import dhrystone
-from flows.patterns.fpga_bootrom import fpga_bootrom
+from flows.patterns.fpga_bootrom import bootrom_out_dir, fpga_bootrom
 from flows.patterns.hello_world import hello_world
 from flows.patterns.pk_hello_world import pk_hello_world
 from flows.patterns.zephyr_hello_world import zephyr_hello_world
@@ -1002,10 +1002,12 @@ VERILATOR_JOBS = 8
 
 # FPGA images: (target, board). A bitstream is built once the RTL of its
 # target elaborates, then the board is programmed and Linux booted on it.
+# The two images of a board share it through its pool, one boot at a time.
 # The Altera one needs a runner wired to its board: it is only run when
 # asked, with --altera.
 FPGA_TARGETS = [
     ("cv32a6_imac_sv32", FpgaBoard.genesys2),
+    ("cv64a6_imafdc_sv39_hpdcache_pmp_mmu_axi", FpgaBoard.genesys2),
 ]
 ALTERA_TARGETS = [
     ("cv64a6_imafdc_sv39_hpdcache_pmp_mmu_axi", AlteraBoard.agilex7),
@@ -1095,6 +1097,16 @@ def _yaml_key(path, key):
     if key not in data:
         raise JobFailure(f"no '{key}' key in {path}")
     return data[key]
+
+
+def _target_xlen(target):
+    "Register width of a target, from the march of its isa.yml"
+    isa = Path.cwd() / "config" / "target" / target / "isa.yml"
+    try:
+        march = _yaml_key(isa, "march")
+    except JobFailure:
+        return 32  # only names a build directory; the job reports the error
+    return 64 if str(march).startswith("rv64") else 32
 
 
 def _march_with_f(target, quiet):
@@ -1502,7 +1514,7 @@ def _add_fpga_jobs(scheduler, target, board, elab_job, deps_job, quiet):
     bootrom = scheduler.add(
         f"fpga-bootrom:{target}:{board.value}",
         partial(_job_fpga_bootrom, target=target, board=board, quiet=quiet),
-        build / "bootrom" / board.value,
+        bootrom_out_dir(Path.cwd(), board, _target_xlen(target)),
         deps=[deps_job],
     )
     image = scheduler.add(

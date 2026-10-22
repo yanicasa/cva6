@@ -169,11 +169,13 @@ the TestHarness: `zephyr-hello-world`, built with the `zephyr-sdk`
 toolchain, then the run on cv32a6_imac_sv32 on Verilator and on
 cv64a6_imafdc_sv39_hpdcache_pmp_mmu_axi on VCS.
 
-The FPGA images of `FPGA_TARGETS` are built once the RTL of their target
-elaborates: a design that does not elaborate in simulation would spend
-hours of Vivado to fail in synthesis. The bootloader of the board comes
-first, then the bitstream, then one job that programs the board and boots
-Linux on it, holding the board for both. `--no-fpga` leaves them out, on a
+The FPGA images of `FPGA_TARGETS`, `cv32a6_imac_sv32` and
+`cv64a6_imafdc_sv39_hpdcache_pmp_mmu_axi` on the Genesys 2, are built once
+the RTL of their target elaborates: a design that does not elaborate in
+simulation would spend hours of Vivado to fail in synthesis. The bootloader
+of the board and the width comes first, then the bitstream, then one job that programs the board
+and boots Linux on it, holding the board for both: the two images of the
+board boot one after the other. `--no-fpga` leaves them out, on a
 machine without Vivado or without the board. The Intel/Altera images of
 `ALTERA_TARGETS` are run only with `--altera`, no runner carrying their
 board yet.

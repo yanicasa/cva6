@@ -1477,7 +1477,7 @@ that reason (openhwgroup/cva6#2121).
 ./cook.py fpga-bootrom -t cv32a6_imac_sv32 -c gcc-15 --board genesys2
 ```
 
-**Output:** `build/bootrom/<board>/bootrom_<XLEN>.sv` (plus the resolved
+**Output:** `build/bootrom/<board>/rv<XLEN>/bootrom_<XLEN>.sv` (plus the resolved
 `.dts`, the `.dtb` and the intermediate binaries)
 
 #### `vivado-fpga-build`
