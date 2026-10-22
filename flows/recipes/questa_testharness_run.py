@@ -42,6 +42,7 @@ from flows.utils.manifest import (
 from flows.utils.pk_run import HarnessProgram
 from flows.utils.recipe_report import RecipeReport
 from flows.utils.run_cmd import run_cmd
+from flows.utils.target_config import spike_core_name
 
 app = typer.Typer()
 
@@ -245,7 +246,7 @@ def questa_testharness_run(
         "+permissive",
         *program.plusargs(),
         f"+elf_file={program.binary}",
-        f"+core_name={target}",
+        f"+core_name={spike_core_name(target, report)}",
         f"+config_file={spike_yaml}",
         f"+tohost_addr={program.tohost}",
         f"+signature={elf}.signature_output",
