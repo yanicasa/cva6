@@ -35,69 +35,137 @@ These configurations ensure that each CVA6 variant can be consistently built, si
 
 ## Available Targets
 
-### Embedded-class OBI buses (noPMP/noMMU, no L1 caches)
+The targets fall in four groups, told apart by the prefix of their name and
+by the `category` key of their `doc.yml`, which sorts them into the sections
+of the dashboard (`official`, `fpga`, `profile`, `cross`):
 
-- cv32a60x
-- **cv32a60x_no_zcmt** (minimal)
-- cv32a65x_noPMP
-- cv64a6_imafdc_sv39_hpdcache_nopmp_nommu_obi
+| Prefix | Group |
+|---|---|
+| `cv...` | **Products**: configurations of the members, named by them. On the OpenHW repositories their name starts with `cv`. |
+| `fpga_linux_` | **FPGA**: the configurations that boot Linux on a board. They are kept apart so that the parameters the platform depends on (FPGA RAMs, cache sizes for timing) evolve with the board, not with the other targets. |
+| `profile_` | **Profiles and reference points**: the RISC-V profiles the core comes closest to, named after the profile with its XLEN (`rva22s64`), and credible reference points (the smallest core with compression, the fastest ones). |
+| `summit_` | **Option crosses**: points named after Alpine summits (3000 m for RV32, 4000 m for RV64) that cross the configuration parameters that change the structure of the RTL, to check that each option keeps working whatever the others: the options must vary independently. They are generated: their options may change without notice, do not build a product on them. |
 
-### Embedded-class AXI buses (noPMP/noMMU, with L1 caches)
+### Products
 
-- cv32a60x_axi
-- cv32a60x_no_zcmt_axi
-- cv32a65x_noPMP_axi
-- cv64a6_imafdc_sv39_hpdcache_nopmp_nommu_axi
+| Target | Role |
+|---|---|
+| `cv32a60x` | Embedded core maintained by Thales: scalar, OBI, no PMP. Its configuration of the cv32a60x-v6.0.0 tag reached TRL5, verified within the TRISTAN project. |
+| `cv32a65x` | Superscalar embedded core maintained by Thales: OBI, PMP. Its configuration of the cv32a60x-v6.0.0 tag reached TRL5, verified within the TRISTAN project. |
 
-### Embedded-class OBI buses + PMP (noMMU, no L1 caches)
+`cv32a60x` and `cv32a65x` keep the configuration of the `cv32a60x-v6.0.0`
+tag, with three changes: `DcacheByteSize` 2048 (2028 was a typo),
+`AxiIdWidth` 5 (required by the HPDcache) and Zifencei, which the tests use.
+The parameters added since the tag are set to the value that disables them.
 
-- cv32a60x_zcmt_pmp
-- cv32a65x
-- cv64a6_imafdc_sv39_hpdcache_pmp_nommu_obi
+### FPGA
 
-### Embedded-class AXI buses + PMP (noMMU, with L1 caches)
+| Target | Role |
+|---|---|
+| `fpga_linux_cv32a6` | Reference 32-bit configuration to boot Linux on the Genesys 2 board: rv32imac, Sv32, S and U, PMP, FPGA RAMs. |
+| `fpga_linux_cv64a6` | Reference 64-bit configuration to boot Linux on the Genesys 2 board, also built for the Agilex 7 board: rv64gc with B, Sv39, S and U, PMP, CVXIF, FPGA RAMs. |
 
-- cv32a60x_zcmt_pmp_axi
-- cv32a65x_axi
-- cv64a6_imafdc_sv39_hpdcache_pmp_nommu_axi
+### Profiles and reference points
 
-### Application-class OBI buses (no L1 caches)
+| Target | Role |
+|---|---|
+| `profile_rvi20u32` | Profile RVI20U32, and the smallest core: scalar, one commit port, no branch prediction, no PMP, no CVXIF, no debug, no counters |
+| `profile_tinyc32` | The smallest core with code compression: profile_rvi20u32 plus C, Zcb, Zcmp and Zcmt |
+| `profile_rvm23u32` | Profile RVM23 (microcontroller, draft), as close as the core supports |
+| `profile_perf32_axi` | The highest CoreMark on RV32: superscalar with ALU bypass, private-history branch predictor of 256 entries, AXI HPDcache with 16 KiB I-cache, F, no Zcb |
+| `profile_perf32_obi` | The highest CoreMark on RV32: superscalar with ALU bypass, private-history branch predictor of 256 entries, OBI without cache, F, no Zcb |
+| `profile_rva20s64` | Profile RVA20S64 |
+| `profile_rva22s64` | Profile RVA22S64, as close as the core supports |
+| `profile_rva23s64` | Profile RVA23S64, as close as the core supports |
+| `profile_perf64_axi` | The highest CoreMark on RV64 with Linux: superscalar with ALU bypass, private-history branch predictor of 256 entries, Sv39 with the shared TLB, write-back AXI HPDcache, no Zcb |
 
-- cv32a6_imac_sv32_obi
-- cv32a65x_sv32
-- cv64a6_imafdc_sv39_hpdcache_pmp_mmu_obi
+#### Support of the RISC-V profiles
 
-### Application-class AXI buses + PMP (with L1 caches)
+What the core lacks for each profile, checked in the RTL. The same list is
+in the `profile:` key of the `doc.yml` of each profile target, which the
+dashboard shows: the profile next to the target, red with the count of
+missing extensions, and their list in the detail of the target. Update both when an extension is added to the core.
 
-- cv32a6_imac_sv32
-- cv32a65x_sv32_axi
-- **cv64a6_imafdc_sv39_hpdcache_pmp_mmu_axi** (High performance 64b core)
+| Extension | State in CVA6 | RVA22S64 | RVA23S64 |
+|---|---|---|---|
+| Zicond | supported |  | required |
+| Zicbom | supported | required | required |
+| Zcb | supported |  | required |
+| B (Zba, Zbb, Zbs) | supported | required | required |
+| Svnapot | supported on RV64 |  | required |
+| Svade | supported: A and D not set fault | required | required |
+| Zicbop | partial: prefetches execute as no-ops | required | required |
+| Zihintpause | partial: pause executes as a full fence | required | required |
+| Zicboz | **missing**: cbo.zero not decoded | required | required |
+| Zfhmin | **missing**: only through XF16, with D on RV64 | required | required |
+| Svpbmt | **missing**: menvcfg.PBMTE not implemented | required | required |
+| Svinval | **missing**: sinval.vma not decoded | required | required |
+| V | **missing**: no vector unit |  | required |
+| Zfa | **missing** |  | required |
+| Zawrs | **missing** |  | required |
+| Zimop, Zcmop | **missing** |  | required |
+| Sstc | **missing**: no stimecmp |  | required |
+| Sscofpmf | **missing**: no counter overflow |  | required |
+| Ssnpm, Supm | **missing**: no pointer masking |  | required |
+| Zkt | **not guaranteed**: the divider stops early on some operands |  | required |
+| Misaligned accesses | trap (allowed, slow) | allowed | allowed |
 
-## Table Targets main options
+RVI20U32 and RVA20S64 are fully supported. RVM23 is checked against its
+draft and has to be reviewed when it is ratified.
 
+### Configuration matrix
 
-| Target | OBI | Mmu | PMP | XLEN | SuperScalar | ZCMT | AMO |
-|--------|--------------|------------|--------------|------|---------------|--------|-----|
-| cv32a60x | 1 | 0 | 0 | 32 | 0 | 1 | 0 |
-| cv32a60x_no_zcmt | 1 | 0 | 0 | 32 | 0 | 0 | 0 |
-| cv32a60x_axi | 0 | 0 | 0 | 32 | 0 | 1 | 0 |
-| cv32a60x_no_zcmt_axi | 0 | 0 | 0 | 32 | 0 | 0 | 0 |
-| cv32a65x_noPMP | 1 | 0 | 0 | 32 | 1 | 1 | 0 |
-| cv32a65x_noPMP_axi | 0 | 0 | 0 | 32 | 1 | 1 | 0 |
-| cv64a6_imafdc_sv39_hpdcache_nopmp_nommu_obi | 1 | 0 | 0 | 64 | 0 | 0 | 1 |
-| cv64a6_imafdc_sv39_hpdcache_nopmp_nommu_axi | 0 | 0 | 0 | 64 | 0 | 0 | 1 |
-| cv32a60x_zcmt_pmp | 1 | 0 | 8 | 32 | 0 | 1 | 0 |
-| cv32a60x_zcmt_pmp_axi | 0 | 0 | 8 | 32 | 0 | 1 | 0 |
-| cv32a65x | 1 | 0 | 8 | 32 | 1 | 1 | 0 |
-| cv32a65x_axi | 0 | 0 | 8 | 32 | 1 | 1 | 0 |
-| cv64a6_imafdc_sv39_hpdcache_pmp_nommu_obi | 1 | 0 | 8 | 64 | 0 | 0 | 1 |
-| cv64a6_imafdc_sv39_hpdcache_pmp_nommu_axi | 0 | 0 | 8 | 64 | 0 | 0 | 1 |
-| cv32a65x_sv32 | 1 | 1 | 8 | 32 | 1 | 0 | 0 |
-| cv32a65x_sv32_axi | 0 | 1 | 8 | 32 | 1 | 0 | 0 |
-| cv32a6_imac_sv32_obi | 1 | 1 | 8 | 32 | 0 | 0 | 1 |
-| cv32a6_imac_sv32 | 0 | 1 | 8 | 32 | 0 | 0 | 1 |
-| cv64a6_imafdc_sv39_hpdcache_pmp_mmu_obi | 1 | 1 | 8 | 64 | 0 | 0 | 1 |
-| cv64a6_imafdc_sv39_hpdcache_pmp_mmu_axi | 0 | 1 | 8 | 64 | 0 | 0 | 1 |
+The parameters of `rtl_cfg_pkg.sv` that change the structure of the RTL
+(which modules are instantiated, the width of the datapaths, the number of
+ports) were grouped by the parts of the core they couple. Inside each group
+every legal combination is built by at least one target; independent
+options and sizes take each of their values at least once. The products and
+the FPGA targets are left out of this count, the profiles and reference
+points are in it.
+
+| Group | Parameters combined |
+|---|---|
+| Fetch and issue | XLEN, RVC, SuperscalarEn and NrCommitPorts |
+| Decode | RVC, Zcmp, Zcmt, CvxifEn, SuperscalarEn |
+| Execute | SuperscalarEn, ALUBypass, FPU present, CvxifEn |
+| Privilege and translation | XLEN, S, U, H, MmuPresent, UseSharedTlb, SvnapotEn |
+| Memory | MemSubsystem and CacheWritePolicy, two-phase loads (MmuPresent), Zcmt |
+| FP | XLEN, F, D, XF16ALT |
+| Counters | PerfCounterEn, Zicntr, Zihpm, XLEN |
+| Triggers | Sdtrig with or without debug action, commit ports, XLEN and H |
+| Branch prediction | BHT, private-history BHT or none, RVC, SuperscalarEn |
+| ALU | XLEN, B, ZKN |
+
+Single values: BigEndianEn, DclsEn, DcacheEccEnable, PMP entries, TvalEn,
+DebugEn, NrLoadBufEntries (1, 2 to 15, 16 and more), NrLoadPipeRegs and
+NrStorePipeRegs (0, 1, 2), each also paired with the memory subsystem or the
+privilege where they interact.
+
+The axes of each summit target are in the `matrix:` key of its `doc.yml`.
+
+| Target | XLEN | Superscalar | Zcmp/Zcmt | Privilege | MMU | Memory | FP | Sdtrig |
+|---|---|---|---|---|---|---|---|---|
+| `summit_titlis` | 32 | SS | none | M | nommu | HPD-WB | none | nodbg |
+| `summit_pilatus` | 32 | SS | t | MU | nommu | HPD-WB | F | off |
+| `summit_saentis` | 32 | SS | none | MSU | mmu | HPD-WT | F | dbg |
+| `summit_eiger` | 32 | 2c | none | M | nommu | HPD-WT | none | off |
+| `summit_pizpalue` | 32 | SS | pt | MU | nommu | HPD-WT | F | nodbg |
+| `summit_toedi` | 32 | 1c | t | M | nommu | HPD-WT_WB | none | dbg |
+| `summit_galenstock` | 32 | SS+byp | t | M | nommu | HPD-WT_WB | none | nodbg |
+| `summit_dammastock` | 32 | SS+byp | none | MSU | mmu+stlb | OBI | F | off |
+| `summit_oldenhorn` | 32 | 1c | t | MSU | nommu | OBI | F | nodbg |
+| `summit_dom` | 64 | 1c | none | MSUH | mmu+stlb | HPD-WB | FD+xf | off |
+| `summit_weisshorn` | 64 | 1c | p | MSUH | mmu | HPD-WT | none | dbg |
+| `summit_matterhorn` | 64 | 1c | p | MSUH | mmu+stlb | HPD-WT | none | nodbg |
+| `summit_grandcombin` | 64 | 2c | none | MSU | mmu+stlb+napot | HPD-WT | FD | nodbg |
+| `summit_dentblanche` | 64 | SS+byp | none | MSUH | mmu+stlb+napot | HPD-WT | none | off |
+| `summit_nadelhorn` | 64 | SS+byp | pt | MU | nommu | HPD-WT | none | dbg |
+| `summit_grandesjorasses` | 64 | SS | none | MSUH | mmu+napot | HPD-WT_WB | FD+xf | nodbg |
+| `summit_finsteraarhorn` | 64 | 1c | none | M | nommu | HPD-WT_WB | none | off |
+| `summit_monterosa` | 64 | 1c | none | MSU | nommu | HPD-WT_WB | FD | nodbg |
+| `summit_lyskamm` | 64 | 1c | pt | M | nommu | HPD-WT_WB | none | dbg |
+| `summit_barredesecrins` | 64 | SS | p | MSUH | mmu | OBI | none | dbg |
+| `summit_grandparadis` | 64 | SS | p | MSU | mmu+napot | OBI | none | dbg |
 
 ## Target Directory Structure
 
@@ -381,7 +449,7 @@ cv<bitwidth>a6<variant>_<features>_<interface>
 
 Examples:
 - `cv32a60x` - 32-bit, variant 60x, OBI (minimal)
-- `cv64a6_imafdc_sv39_hpdcache_pmp_mmu_axi` - 64-bit, hig perf, AXI
+- `fpga_linux_cv64a6` - 64-bit, hig perf, AXI
 
 ### 2. Create Target Directory
 
@@ -398,7 +466,7 @@ Copy a similar configuration as a baseline:
 cp -r config/target/cv32a60x/* config/target/<new_target>
 
 # For a 64-bit target
-cp -r config/target/cv64a6_imafdc_sv39_hpdcache_pmp_mmu_obi/* config/target/<new_target>
+cp -r config/target/profile_rva22s64/* config/target/<new_target>
 ```
 
 ### 4. Customize Configuration Files

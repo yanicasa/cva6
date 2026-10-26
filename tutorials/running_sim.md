@@ -49,12 +49,12 @@ When running C programs, a common requirement is to use standard library functio
 The flow runs with cook.py, on the Verilator or VCS TestHarness, for a target with U-mode and the debug module. For instance on a 32-bit target:
 ```sh
 ./cook.py git-dependencies --repo riscv-pk
-./cook.py pk-build -t cv32a6_imac_sv32 -c gcc-15
-./cook.py pk-hello-world -t cv32a6_imac_sv32 -c gcc-15
-./cook.py verilator-testharness-comp -t cv32a6_imac_sv32
-./cook.py verilator-testharness-run -t cv32a6_imac_sv32 -n pk-hello-world
+./cook.py pk-build -t fpga_linux_cv32a6 -c gcc-15
+./cook.py pk-hello-world -t fpga_linux_cv32a6 -c gcc-15
+./cook.py verilator-testharness-comp -t fpga_linux_cv32a6
+./cook.py verilator-testharness-run -t fpga_linux_cv32a6 -n pk-hello-world
 ```
-The program prints its text in `build/cv32a6_imac_sv32/simulation/sim_rtl_verilator_testharness/pk-hello-world/testharness.log`, confirming that the printf statement was executed properly. See the `pk-build` and `pk-hello-world` recipes in [flows/README.md](../flows/README.md) for the details.
+The program prints its text in `build/fpga_linux_cv32a6/simulation/sim_rtl_verilator_testharness/pk-hello-world/testharness.log`, confirming that the printf statement was executed properly. See the `pk-build` and `pk-hello-world` recipes in [flows/README.md](../flows/README.md) for the details.
 
 ## Simulating with VCS and Verdi
 
@@ -127,7 +127,7 @@ bash verif/regress/smoke-tests-<cpu_version>.sh
 
 Where `<cpu_version>` is one of the following, depending on the CPU variant you want to use.
 - `cv32a65x`.
-- `cv32a6_imac_sv32`.
+- `fpga_linux_cv32a6`.
 - `cv64a6_imafdc_sv39`.
 
 After each simulation run involving Verilator or VCS, the generated waveforms

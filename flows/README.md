@@ -579,9 +579,9 @@ load pk and give it the program as its argument.
 
 **Example:**
 ```bash
-./cook.py pk-build -t cv32a6_imac_sv32 -c gcc-15
-./cook.py pk-hello-world -t cv32a6_imac_sv32 -c gcc-15
-./cook.py verilator-testharness-run -t cv32a6_imac_sv32 -n pk-hello-world
+./cook.py pk-build -t fpga_linux_cv32a6 -c gcc-15
+./cook.py pk-hello-world -t fpga_linux_cv32a6 -c gcc-15
+./cook.py verilator-testharness-run -t fpga_linux_cv32a6 -n pk-hello-world
 ```
 
 **Output:** `build/<target>/compile/pk-hello-world/`
@@ -594,8 +594,8 @@ through the UART and ends the simulation by writing `tohost`, so that the
 TestHarness run recipes run it as any other test.
 
 ```bash
-./cook.py zephyr-hello-world -t cv32a6_imac_sv32 -c zephyr-sdk
-./cook.py verilator-testharness-run -t cv32a6_imac_sv32 -n zephyr-hello-world
+./cook.py zephyr-hello-world -t fpga_linux_cv32a6 -c zephyr-sdk
+./cook.py verilator-testharness-run -t fpga_linux_cv32a6 -n zephyr-hello-world
 ```
 
 **Output:** `build/<target>/compile/zephyr-hello-world/`
@@ -1192,15 +1192,15 @@ result table in
 #### Example
 
 ```bash
-./cook.py sw-compile-testlist -t cv32a65x_axi -c gcc-15 \
+./cook.py sw-compile-testlist -t profile_perf32_axi -c gcc-15 \
   -l verif/tests/testlist_verilator_testharness_smoke.yaml
-./cook.py verilator-testharness-comp -t cv32a65x_axi
-./cook.py testharness-run-testlist -s verilator -t cv32a65x_axi \
+./cook.py verilator-testharness-comp -t profile_perf32_axi
+./cook.py testharness-run-testlist -s verilator -t profile_perf32_axi \
   -l verif/tests/testlist_verilator_testharness_smoke.yaml
 
 # The same tests on VCS
-./cook.py vcs-testharness-comp -t cv32a65x_axi
-./cook.py testharness-run-testlist -s vcs -t cv32a65x_axi \
+./cook.py vcs-testharness-comp -t profile_perf32_axi
+./cook.py testharness-run-testlist -s vcs -t profile_perf32_axi \
   -l verif/tests/testlist_verilator_testharness_smoke.yaml
 ```
 
@@ -1468,13 +1468,13 @@ level reads `bootrom_<XLEN>.sv`, so the same binary serves every target of
 that width. This is why the ISA is pinned to `rv<XLEN>im_zicsr` instead of
 following the `march` of the target: a shared ROM may only use what every
 configuration decodes, and their ISA strings have no common superset (the
-`cv32a60x` family carries `zba_zbb_zbs_zbc`, `cv32a6_imac_sv32` carries
-`zbkb`, `cv32a6_ima_sv32_fpga` has `RVB: 0`). Upstream pinned it down for
+`cv32a60x` family carries `zba_zbb_zbs_zbc`, `fpga_linux_cv32a6` carries
+`zbkb`, `profile_rvi20u32` has no bitmanip). Upstream pinned it down for
 that reason (openhwgroup/cva6#2121).
 
 **Example:**
 ```bash
-./cook.py fpga-bootrom -t cv32a6_imac_sv32 -c gcc-15 --board genesys2
+./cook.py fpga-bootrom -t fpga_linux_cv32a6 -c gcc-15 --board genesys2
 ```
 
 **Output:** `build/bootrom/<board>/rv<XLEN>/bootrom_<XLEN>.sv` (plus the resolved
@@ -1522,11 +1522,11 @@ sources after the include to overload the common list.
 **Example:**
 ```bash
 # Bitstream for the default board
-./cook.py vivado-fpga-build -t cv32a6_imac_sv32
+./cook.py vivado-fpga-build -t fpga_linux_cv32a6
 
 # Another board, with the flash image, reusing the generated IPs
 ./cook.py vivado-fpga-build \
-  -t cv32a6_imac_sv32 \
+  -t fpga_linux_cv32a6 \
   --board nexys_video \
   --mcs \
   --no-bootrom
@@ -1570,12 +1570,12 @@ rather than pushed.
 ```bash
 # Program the board driven by a local hw_server
 ./cook.py vivado-fpga-program \
-  -t cv32a6_imac_sv32 \
+  -t fpga_linux_cv32a6 \
   --hw-server localhost:3121
 
 # Program an artifact built elsewhere, with the lab edition
 ./cook.py vivado-fpga-program \
-  -t cv32a6_imac_sv32 \
+  -t fpga_linux_cv32a6 \
   --bitstream artifacts/FPGA/bitstream/ariane_xilinx.bit \
   --vivado-cmd vivado_lab
 ```
@@ -1621,7 +1621,7 @@ failure.
 
 **Example:**
 ```bash
-./cook.py fpga-linux-boot -t cv32a6_imac_sv32 --uart /dev/ttyUSB1
+./cook.py fpga-linux-boot -t fpga_linux_cv32a6 --uart /dev/ttyUSB1
 ```
 
 **Output:** `build/<target>/fpga_boot/<board>/boot.log` (the full console
@@ -1773,8 +1773,8 @@ failure.
 
 ```bash
 # Board cabled to bench-pc, flows running on the Linux server
-./cook.py vivado-fpga-program -t cv32a6_imac_sv32 --hw-server bench-pc:3121
-./cook.py fpga-linux-boot -t cv32a6_imac_sv32 --uart socket://bench-pc:4001
+./cook.py vivado-fpga-program -t fpga_linux_cv32a6 --hw-server bench-pc:3121
+./cook.py fpga-linux-boot -t fpga_linux_cv32a6 --uart socket://bench-pc:4001
 ```
 
 If the two machines are not on the same network, forward the two ports
@@ -1782,8 +1782,8 @@ through SSH rather than exposing them:
 
 ```bash
 ssh -N -L 3121:localhost:3121 -L 4001:localhost:4001 user@bench-pc
-./cook.py vivado-fpga-program -t cv32a6_imac_sv32 --hw-server localhost:3121
-./cook.py fpga-linux-boot -t cv32a6_imac_sv32 --uart socket://localhost:4001
+./cook.py vivado-fpga-program -t fpga_linux_cv32a6 --hw-server localhost:3121
+./cook.py fpga-linux-boot -t fpga_linux_cv32a6 --uart socket://localhost:4001
 ```
 
 ---
@@ -2002,7 +2002,7 @@ like), `docs/01_cva6_user/user_cfg_doc.rst` is regenerated for the last
 chapter, and the output goes to `build/readthedoc/docs/`. A chapter whose
 target has no `config/target/` directory of its own is documented from the
 closest supported configuration - `cv64a6_mmu` from
-`cv64a6_imafdc_sv39_hpdcache_pmp_mmu_axi`, as it moved under
+`fpga_linux_cv64a6`, as it moved under
 `deprecated_packages/` upstream.
 
 **Reported:** `docs_pages` and `docs_warnings` as KPIs, the label being the

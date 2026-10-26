@@ -154,15 +154,15 @@ without the commercial tools:
 
 ```bash
 # 1. Compile the two Hello tests of the smoke testlist
-./cook.py sw-compile-testlist -t cv32a65x_axi -c gcc-15 \
+./cook.py sw-compile-testlist -t profile_perf32_axi -c gcc-15 \
   -l verif/tests/testlist_verilator_testharness_smoke.yaml
 
 # 2. Build the Verilator model
-./cook.py verilator-testharness-comp -t cv32a65x_axi
+./cook.py verilator-testharness-comp -t profile_perf32_axi
 
 # 3. Run one test, then the whole list
-./cook.py verilator-testharness-run -t cv32a65x_axi -n hello-uart_0
-./cook.py testharness-run-testlist --simulator verilator -t cv32a65x_axi \
+./cook.py verilator-testharness-run -t profile_perf32_axi -n hello-uart_0
+./cook.py testharness-run-testlist --simulator verilator -t profile_perf32_axi \
   -l verif/tests/testlist_verilator_testharness_smoke.yaml
 ```
 
@@ -262,17 +262,17 @@ carrying a Linux image built with the CVA6 SDK.
 ```bash
 # 1. Build the bootloader: one ROM per board and per register width,
 #    shared by every target of that width
-./cook.py fpga-bootrom -t cv32a6_imac_sv32 -c gcc-15 --board genesys2
+./cook.py fpga-bootrom -t fpga_linux_cv32a6 -c gcc-15 --board genesys2
 
 # 2. Build the bitstream (the first build also generates the Vivado IPs,
 #    reused by every later build)
-./cook.py vivado-fpga-build -t cv32a6_imac_sv32 --board genesys2
+./cook.py vivado-fpga-build -t fpga_linux_cv32a6 --board genesys2
 
 # 3. Load it on the board driven by a running hw_server
-./cook.py vivado-fpga-program -t cv32a6_imac_sv32 --hw-server localhost:3121
+./cook.py vivado-fpga-program -t fpga_linux_cv32a6 --hw-server localhost:3121
 
 # 4. Watch the console until Linux boots
-./cook.py fpga-linux-boot -t cv32a6_imac_sv32 --uart /dev/ttyUSB1
+./cook.py fpga-linux-boot -t fpga_linux_cv32a6 --uart /dev/ttyUSB1
 ```
 
 Steps 3 and 4 can be replayed on their own: the bitstream is a
@@ -284,12 +284,12 @@ The same four steps, with the Quartus recipes. The bootloader is shared,
 `fpga-bootrom` taking a board of either vendor.
 
 ```bash
-./cook.py fpga-bootrom -t cv64a6_imafdc_sv39_hpdcache_pmp_mmu_axi \
+./cook.py fpga-bootrom -t fpga_linux_cv64a6 \
   -c gcc-15 --board agilex7
-./cook.py quartus-fpga-build -t cv64a6_imafdc_sv39_hpdcache_pmp_mmu_axi \
+./cook.py quartus-fpga-build -t fpga_linux_cv64a6 \
   --board agilex7
-./cook.py quartus-fpga-program -t cv64a6_imafdc_sv39_hpdcache_pmp_mmu_axi
-./cook.py fpga-linux-boot -t cv64a6_imafdc_sv39_hpdcache_pmp_mmu_axi \
+./cook.py quartus-fpga-program -t fpga_linux_cv64a6
+./cook.py fpga-linux-boot -t fpga_linux_cv64a6 \
   --uart /dev/ttyUSB1
 ```
 

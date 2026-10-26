@@ -33,8 +33,8 @@ The ISA is deliberately the smallest one every CVA6 configuration
 implements, and it is **not** the `march` of the target: a single ROM is
 shared by all the targets of a width, so it may only use what all of them
 decode. Their `isa.yml` do not even have a common superset - the
-`cv32a60x` family carries `zba_zbb_zbs_zbc`, `cv32a6_imac_sv32` carries
-`zbkb` instead, and `cv32a6_ima_sv32_fpga` has `RVB: 0` and so decodes no
+`cv32a60x` family carries `zba_zbb_zbs_zbc`, `fpga_linux_cv32a6` carries
+`zbkb` instead, and `profile_rvi20u32` has `RVB: 0` and so decodes no
 bitmanip at all (openhwgroup/cva6#2121). Compression is left out for the
 same reason.
 """

@@ -549,7 +549,7 @@ READTHEDOC_CHAPTER_PAGE = {
 # with: `cv64a6_mmu` moved under `deprecated_packages/` upstream. It is
 # documented from the closest supported configuration instead.
 READTHEDOC_CONFIGS = {
-    "cv64a6_mmu": "cv64a6_imafdc_sv39_hpdcache_pmp_mmu_axi",
+    "cv64a6_mmu": "fpga_linux_cv64a6",
 }
 
 # Manuals a configuration can be documented by. `source` is where their

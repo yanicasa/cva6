@@ -80,17 +80,17 @@ After you've inserted the SD Card and programmed the FPGA you can connect to the
 [zephyr](https://zephyrproject.org/) is a real-time unikernel operating system developed by the Linux Foundation that targets resource-constrained embedded devices. It is highly configurable and optionally provides subsystems like userspace support with the PMP, a full network stack and a file system.
 
 zephyr natively supports the cva6 SoC and the **Genesys 2** board in two configurations: [cv64a6_imafdc_sv39](https://docs.zephyrproject.org/latest/boards/openhwgroup/cv64a6_genesys_2/doc/index.html) and [cv32a6_imac_sv32](https://docs.zephyrproject.org/latest/boards/openhwgroup/cv32a6_genesys_2/doc/index.html).
-`cv64a6_imafdc_sv39` is the configuration that will be synthesized when you follow the steps [below](#generating-a-bitstream).
-In order to build `cv32a6_imac_sv32`, use the following command instead:
+`fpga_linux_cv64a6` is the configuration that will be synthesized when you follow the steps [below](#generating-a-bitstream).
+In order to build `fpga_linux_cv32a6`, the configuration Zephyr calls `cv32a6_imac_sv32`, use the following command instead:
 ```bash
-target=cv32a6_imac_sv32 make fpga
+target=fpga_linux_cv32a6 make fpga
 ```
 
 In order to build a zephyr application, follow the [zephyr getting started guide](https://docs.zephyrproject.org/latest/develop/getting_started/index.html) to setup the build dependencies and install zephyr's meta tool *west*.
 You can then build zephyr applications using the standard process:
 ```bash
-west build -p -b cv64a6_genesys_2 samples/hello_world # for cv64a6_imafdc_sv39
-west build -p -b cv32a6_genesys_2 samples/hello_world # for cv32a6_imac_sv32
+west build -p -b cv64a6_genesys_2 samples/hello_world # for fpga_linux_cv64a6
+west build -p -b cv32a6_genesys_2 samples/hello_world # for fpga_linux_cv32a6
 ```
 
 
@@ -113,8 +113,8 @@ You can then insert the SD card into the board and have the zero-stage boot load
 A zephyr application also runs in simulation, on the TestHarness, whose memory map is the one of these boards. The `zephyr-hello-world` pattern of cook.py builds a Hello world that ends the simulation, without west:
 ```bash
 ./cook.py git-dependencies --repo zephyr
-./cook.py zephyr-hello-world -t cv32a6_imac_sv32 -c zephyr-sdk
-./cook.py verilator-testharness-run -t cv32a6_imac_sv32 -n zephyr-hello-world
+./cook.py zephyr-hello-world -t fpga_linux_cv32a6 -c zephyr-sdk
+./cook.py verilator-testharness-run -t fpga_linux_cv32a6 -n zephyr-hello-world
 ```
 See the `zephyr-build` recipe in [flows/README.md](../flows/README.md) for the toolchain and the Python it needs.
 

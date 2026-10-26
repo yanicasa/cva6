@@ -18,7 +18,7 @@ verilator_bin=${VERILATOR:-verilator}
   "$repo_dir/vendor/pulp-platform/common_cells/src/cf_math_pkg.sv" \
   "$repo_dir/vendor/pulp-platform/obi/src/obi_pkg.sv" \
   "$repo_dir/core/include/config_pkg.sv" \
-  "$repo_dir/config/target/cv32a6_imac_sv32/rtl_cfg_pkg.sv" \
+  "$repo_dir/config/target/fpga_linux_cv32a6/rtl_cfg_pkg.sv" \
   "$repo_dir/core/include/riscv_pkg.sv" \
   "$repo_dir/core/cvfpu/src/fpnew_pkg.sv" \
   "$repo_dir/core/include/ariane_pkg.sv" \
