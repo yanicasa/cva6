@@ -349,7 +349,7 @@ def vcs_uvm_run(
         f"+signature={signature}",
         "+UVM_TESTNAME=uvmt_cva6_firmware_test_c",
         f"+report_file={tandem_report}",
-        f"+UVM_VERBOSITY=UVM_{uvm_verbosity}",
+        f"+UVM_VERBOSITY=UVM_{uvm_verbosity.value}",
         *[f"{run_opt}" for run_opt in run_opts],
         "-assert",
         "nopostproc",
