@@ -228,7 +228,7 @@ TARGETS = [
 #   base_zcmp, base_rv64_zcmp  RVZCMP on RV32, RV64
 #   dcache_wt, dcache_wb, dcache_wt_wb  CacheWritePolicy of an HPDcache with
 #                  RVZiCbom
-#   testlist_sdtrig, testlist_sdtrig_nommu  Sdtrig
+#   testlist_sdtrig  Sdtrig
 #   testlist_sdtrig_h  Sdtrig and RVH
 TESTLISTS = {
     "cv32a60x": ["base_rv32_p", "base_zcmt", "base_csr", "base_le", "base_obi"],
@@ -566,7 +566,7 @@ TESTLISTS = {
         "base_rv32_v",
         "base_rv32_mmu",
         "base_pmp",
-        "testlist_sdtrig_nommu",
+        "testlist_sdtrig",
         "base_csr",
         "base_le",
         "base_ni",
@@ -582,7 +582,7 @@ TESTLISTS = {
         "base_rv64_pmp_mmu",
         "base_rv64_amo_p",
         "base_rv64_amo_v",
-        "testlist_sdtrig_nommu",
+        "testlist_sdtrig",
         "base_csr",
         "base_le",
         "base_obi",
@@ -597,7 +597,7 @@ TESTLISTS = {
         "base_rv64_pmp_mmu",
         "base_rv64_amo_p",
         "base_rv64_amo_v",
-        "testlist_sdtrig_nommu",
+        "testlist_sdtrig",
         "base_csr",
         "base_zicbom",
         "dcache_wt",
@@ -693,7 +693,7 @@ TESTLISTS = {
         "base_rv64_amo_v",
         "base_zicbom",
         "base_zicbom_h",
-        "testlist_sdtrig_nommu",
+        "testlist_sdtrig",
         "testlist_sdtrig_h",
         "dcache_wt",
         "base_le",
