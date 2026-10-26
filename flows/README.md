@@ -1957,6 +1957,9 @@ authors:
 | `license` | the licence name | Solderpad Hardware License, Version 2.1 |
 | `spdx` | the SPDX identifier | `Apache-2.0 WITH SHL-2.1` |
 | `url` | where to obtain the licence | `https://solderpad.org/licenses/` |
+| `category` | section of the dashboard: `official` (maintained by an organisation), `fpga` (Linux on a board), `profile` (preset) or `cross` (option cross) | `official` |
+| `role` | one-line description shown at the top of the detail of the target in the dashboard | none |
+| `profile` | RISC-V profile of the target: `name`, `version`, and the lists of the `missing` and `partial` extensions. The dashboard shows the profile next to the target, red with the count of missing extensions, and lists them in its detail | none |
 
 `authors` is a list, so an organisation and the people it delegates to can
 both appear, and a target whose documentation has no owner yet says so

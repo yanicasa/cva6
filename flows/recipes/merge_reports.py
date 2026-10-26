@@ -270,6 +270,51 @@ def _read_target_parameters(repo_dir, target, report):
     return displayable
 
 
+# Categories of the targets, in the order the dashboard shows them. A target
+# whose doc.yml gives none, or one not in this list, is shown as official.
+TARGET_CATEGORIES = ["official", "fpga", "profile", "cross"]
+
+
+def _read_target_category(repo_dir, target, report):
+    """
+    Return the dashboard category and the role of a target, from its doc.yml.
+
+    `category` sorts the target into one of the TARGET_CATEGORIES sections
+    of the dashboard; `role` is the one-line description shown at the top
+    of its detail; `profile` is the RISC-V profile the target implements,
+    with the extensions the core lacks for it, shown next to the target.
+    All are optional: a target without them is an official one with no
+    description and no profile.
+    """
+    path = repo_dir / "config" / "target" / target / "doc.yml"
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            doc = yaml.safe_load(f) or {}
+    except FileNotFoundError:
+        doc = {}
+    except (OSError, yaml.YAMLError) as e:
+        report.warning(f"Could not read {path}: {e}")
+        doc = {}
+    category = doc.get("category", "official")
+    if category not in TARGET_CATEGORIES:
+        report.warning(
+            f"Unknown category '{category}' in {path}, shown as official "
+            f"(expected one of {', '.join(TARGET_CATEGORIES)})"
+        )
+        category = "official"
+    info = {"category": category, "role": doc.get("role", "")}
+    profile = doc.get("profile")
+    if isinstance(profile, dict) and profile.get("name"):
+        info["profile"] = {
+            "name": str(profile["name"]),
+            "version": str(profile.get("version", "")),
+            "missing": [str(e) for e in profile.get("missing") or []],
+            "partial": [str(e) for e in profile.get("partial") or []],
+            "note": str(profile.get("note", "")),
+        }
+    return info
+
+
 def _target_documents(jobs, repo_dir, docs_dir, report):
     """
     Collect the specifications `docs-build` produced, per target.
@@ -588,7 +633,9 @@ def merge_reports(
     }
     target_cfg = {}
     target_params = {}
+    target_cat = {}
     for name in sorted(t for t in targets if t):
+        target_cat[name] = _read_target_category(repo_dir, name, report)
         labels = _read_target_config(repo_dir, name)
         if labels:
             target_cfg[name] = labels
@@ -600,6 +647,8 @@ def merge_reports(
     if target_cfg:
         pipeline["target_config"] = target_cfg
         report.success(f"Configuration read for {len(target_cfg)} target(s)")
+    if target_cat:
+        pipeline["target_categories"] = target_cat
     if target_params:
         pipeline["target_parameters"] = target_params
         report.success(f"RTL parameters read for {len(target_params)} target(s)")
