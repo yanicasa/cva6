@@ -20,8 +20,8 @@ build directory, no manifest" rule.
 Testlist recipes record the report path of each of their tests in a
 `report` row column: those child reports are attached to the
 referencing job under a `children` key (their console `Details` log is
-dropped to keep the document size reasonable), so the pipeline report
-is self-contained.
+cut down to the commands they ran, to keep the document size
+reasonable), so the pipeline report is self-contained.
 
 Pipeline metadata comes from the CI environment when available (GitLab
 CI, or the GitHub workflow wrapper variables), and falls back to local
@@ -440,6 +440,24 @@ def _collect_reports(repo_dir, target, report):
     return reports
 
 
+def _child_commands(details):
+    """
+    Keep the commands of a child report's console log.
+
+    run_cmd records each command as three lines: "Set current working
+    directory:" then the directory, "Command launched:" then the command
+    line. Only those pairs are kept, so the dashboard shows what a test of
+    a testlist ran without carrying its whole log.
+    """
+    lines = details.get("data") or []
+    kept = []
+    for i, line in enumerate(lines):
+        text = str(line)
+        if text.endswith(("Set current working directory:", "Command launched:")):
+            kept.extend(lines[i : i + 2])
+    return {**details, "data": kept}
+
+
 def _merge_jobs(reports):
     """Split reports into parent jobs and attach the child reports.
 
@@ -448,7 +466,9 @@ def _merge_jobs(reports):
     the referencing job under `children`, keyed by its build/-relative
     path — the same path recorded in the parent row, which the HTML
     template uses to bind the row to the child report. Their `Details`
-    console log is dropped.
+    console log is cut down to the commands they ran (_child_commands):
+    a testlist has hundreds of tests, and the rest of their log is in
+    their build directory.
     """
     parent_of = {}
     for path, doc in reports.items():
@@ -463,7 +483,8 @@ def _merge_jobs(reports):
             jobs.append(doc)
         else:
             doc["metrics"] = [
-                m for m in doc.get("metrics") or [] if m.get("name") != "Details"
+                _child_commands(m) if m.get("name") == "Details" else m
+                for m in doc.get("metrics") or []
             ]
             reports[parent_path].setdefault("children", {})[path] = doc
     return jobs
