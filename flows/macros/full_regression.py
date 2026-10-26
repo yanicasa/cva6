@@ -222,6 +222,7 @@ TARGETS = [
 #   base_rv64_h    RVH
 #   base_rv64_h_pmp  RVH and PMP entries
 #   base_rv64_h_hpm  RVH and PerfCounterEn (the test reads the DTLB miss counter)
+#   base_rv64_h_zicntr  RVH and RVZicntr
 #   base_rv32_mmu  Sv32 with PMP entries (the tests program pmpcfg)
 #   base_be        BigEndianEn (big endian data accesses)
 #   base_rv32_be_mmu, base_rv64_be_mmu  BigEndianEn with Sv32, Sv39
@@ -437,6 +438,7 @@ TESTLISTS = {
         "base_rv64_pmp",
         "base_rv64_pmp_mmu",
         "base_rv64_h",
+        "base_rv64_h_zicntr",
         "base_rv64_h_hpm",
         "base_rv64_h_pmp",
         "base_rv64_amo_p",
@@ -676,6 +678,7 @@ TESTLISTS = {
         "base_rv64_pmp",
         "base_rv64_pmp_mmu",
         "base_rv64_h",
+        "base_rv64_h_zicntr",
         "base_rv64_h_hpm",
         "base_rv64_h_pmp",
         "base_rv64_amo_p",
@@ -695,6 +698,7 @@ TESTLISTS = {
         "base_rv64_pmp",
         "base_rv64_pmp_mmu",
         "base_rv64_h",
+        "base_rv64_h_zicntr",
         "base_rv64_h_hpm",
         "base_rv64_h_pmp",
         "base_rv64_amo_p",
@@ -714,6 +718,7 @@ TESTLISTS = {
         "base_rv64_pmp",
         "base_rv64_pmp_mmu",
         "base_rv64_h",
+        "base_rv64_h_zicntr",
         "base_rv64_h_hpm",
         "base_rv64_h_pmp",
         "base_rv64_amo_p",
