@@ -8,9 +8,10 @@
 # ------------------------------------------------------------------------------
 #   base_rv64_pmp.yaml
 #
-#   PMP tests that only build for RV64, for the cv64 targets with PMP entries.
-#   pmp-tor-grain checks TOR matching at an eight-byte PMP granularity. The
-#   tests that check mtval are in base_rv64_pmp_tval.
+#   PMP tests that only build for RV64 and run in S-mode, for the cv64 targets
+#   with PMP entries and RVS. pmp-tor-grain checks TOR matching at an
+#   eight-byte PMP granularity. The tests that check mtval are in
+#   base_rv64_pmp_tval.
 # ------------------------------------------------------------------------------
 
 custom_test_config: &custom_test_config

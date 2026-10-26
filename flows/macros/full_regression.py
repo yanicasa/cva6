@@ -209,10 +209,11 @@ TARGETS = [
 #   base_rv32_v, base_rv64_v  an MMU and TvalEn (the page fault handler reads
 #                  stval)
 #   base_pmp       PMP entries
-#   base_rv64_pmp  PMP entries and RVA on RV64 (one test runs an AMO)
+#   base_rv64_pmp  PMP entries and RVS on RV64
 #   base_rv64_pmp_mmu  PMP entries and an MMU on RV64
-#   base_rv64_pmp_tval, base_rv64_pmp_mmu_tval  the same with TvalEn (the
-#                  trap handlers check mtval)
+#   base_rv64_pmp_tval  PMP entries, RVA and TvalEn on RV64 (one test runs an
+#                  AMO, the trap handlers check mtval)
+#   base_rv64_pmp_mmu_tval  base_rv64_pmp_mmu with TvalEn
 #   base_rv32_amo_p, base_rv64_amo_p  RVA; base_rv32_amo_v, base_rv64_amo_v
 #                  RVA, an MMU and TvalEn
 #   base_zcmt, base_rv64_zcmt  RVZCMT on RV32, RV64
@@ -481,6 +482,7 @@ TESTLISTS = {
         "base_rv64_pmp_mmu",
         "base_rv64_pmp_mmu_tval",
         "base_pmp",
+        "base_rv64_pmp",
         "base_csr",
         "base_be",
         "base_rv64_be_mmu",
