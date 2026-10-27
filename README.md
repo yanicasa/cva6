@@ -8,9 +8,67 @@ It has a configurable size, separate TLBs, a hardware PTW and branch-prediction 
 
 # CVA6 Target Configurations
 
-CVA6 supports multiple processor variants (targets), each defining a specific configuration with ISA extensions, memory maps, and RTL parameters. Each target is located in `config/target/<target_name>/` and contains configuration files for compilation, simulation, and verification.
+CVA6 is not one CPU but a family: from a 32-bit microcontroller to a
+superscalar 64-bit core running Linux, every point built from the same RTL
+by its configuration package. The CI builds and verifies 35 of them, each in
+`config/target/<target_name>/`; see [config/README.md](config/README.md).
 
-For detailed information on available targets, configuration file formats, and how to create new targets, see [config/README.md](config/README.md).
+## Member configurations
+
+Each of these configurations is maintained by an OpenHW member. CoreMark/MHz
+measured in simulation, with an ideal memory:
+
+| Target | Maintainer | CoreMark/MHz |
+|---|---|---|
+| `cv32a60x` | Thales | 3.25 |
+| `cv32a65x` | Thales | 4.69 |
+| `fpga_linux_cv32a6` | PlanV | 3.03 |
+| `fpga_linux_cv64a6` | PlanV | 2.73 |
+
+### cv32a60x
+
+32-bit embedded core maintained by Thales: RV32IMC + B + Zcb, scalar, OBI
+bus, no PMP. Its configuration of the `cv32a60x-v6.0.0` tag reached TRL5,
+verified within the TRISTAN project.
+
+### cv32a65x
+
+32-bit embedded core maintained by Thales: the ISA of cv32a60x on a
+superscalar pipeline, OBI bus, 8 PMP entries. Its configuration of the
+`cv32a60x-v6.0.0` tag reached TRL5, verified within the TRISTAN project.
+
+### fpga_linux_cv32a6
+
+Reference 32-bit configuration maintained by PlanV to boot Linux on the Genesys 2
+FPGA board: RV32IMAC, Sv32 MMU, S and U modes, PMP.
+
+### fpga_linux_cv64a6
+
+Reference 64-bit configuration maintained by PlanV to boot Linux on the Genesys 2
+FPGA board: RV64GC + B, Sv39 MMU, S and U modes, PMP.
+
+## Profiles and reference points
+
+CoreMark/MHz measured in simulation, with an ideal memory:
+
+| Target | Core | CoreMark/MHz | Limitations |
+|---|---|---|---|
+| `profile_rvi20u32` | RV32IM, smallest core | 2.79 | |
+| `profile_tinyc32` | RV32IMC + Zcb/Zcmp/Zcmt, smallest with code compression | 2.79 | |
+| `profile_rvm23u32` | RVM23 microcontroller profile | 3.24 | profile still a draft |
+| `profile_perf32_axi` | RV32IMAFC, superscalar, AXI HPDcache | 5.08 | |
+| `profile_perf32_obi` | Same core on OBI, no cache | 5.25 | figure set by a zero-wait memory |
+| `profile_rvi20u64` | RV64IM, smallest RV64 core | 2.22 | |
+| `profile_rva20s64` | RVA20 application profile, Sv39, Linux | 2.41 | |
+| `profile_rva22s64` | RVA22 application profile | 2.91 | lacks Zicboz, Zfhmin, Svpbmt, Svinval |
+| `profile_rva23s64` | RVA23 application profile, hypervisor | 2.96 | lacks V and 12 other extensions |
+| `profile_perf64_axi` | RV64GC + B, superscalar, Sv39, Linux | 4.26 | |
+
+## Option crosses
+
+21 `summit_` targets cross the structural options (XLEN, superscalar, MMU,
+hypervisor, caches, FPU, endianness, triggers...) so each one keeps working
+whatever the others.
 
 # Quick Start
 
@@ -72,58 +130,6 @@ source flows/config/setenv.sh
 
 **For complete documentation**, see [flows/README.md](flows/README.md)
 
-# Old Quick setup
-
-The following instructions will allow you to compile and run a Verilator model of the CVA6 APU (which instantiates the CVA6 core) within the CVA6 APU testbench (corev_apu/tb).
-
-Throughout all build and simulations scripts executions, you can use the environment variable `NUM_JOBS` to set the number of concurrent jobs launched by `make`:
-- if left undefined, `NUM_JOBS` will default to 1, resulting in a sequential execution
-of `make` jobs;
-- when setting `NUM_JOBS` to an explicit value, it is recommended not to exceed 2/3 of
-the total number of virtual cores available on your system.
-
-1. Checkout the repository and initialize all submodules.
-```sh
-git clone https://github.com/openhwgroup/cva6.git
-cd cva6
-git submodule update --init --recursive
-```
-Then apply the submodule patches of `flows/config/dependencies.yml`, without
-which the design does not build: `./cook.py git-dependencies` (Python
-dependencies in `flows/requirements.txt`).
-
-2. Install the GCC Toolchain [build prerequisites](util/toolchain-builder/README.md#Prerequisites) then [the toolchain itself](util/toolchain-builder/README.md#Getting-started).
-
-:warning: It is **strongly recommended** to use the toolchain built with the provided scripts.
-
-3. Install `cmake`, version 3.14 or higher.
-
-4. Set the RISCV environment variable.
-```sh
-export RISCV=/path/to/toolchain/installation/directory
-```
-
-5. Install `help2man` and `device-tree-compiler` packages.
-
-For Debian-based Linux distributions, run :
-
-```sh
-sudo apt-get install help2man device-tree-compiler
-```
-
-6. Install the riscv-dv requirements:
-
-```sh
-pip3 install -r verif/sim/dv/requirements.txt
-```
-
-7. Run these commands to install a custom Spike and Verilator (i.e. these versions must be used to simulate the CVA6) and [these](tutorials/running_sim.md#running-regression-tests-simulations) tests suites.
-```sh
-# DV_SIMULATORS is detailed in the next section
-export DV_SIMULATORS=veri-testharness,spike
-bash verif/regress/smoke-tests.sh
-```
-
 # Tutorials
 
 * **[Running Simulations](tutorials/running_sim.md)**
@@ -139,25 +145,37 @@ Files, directories and submodules under `corev_apu` are for the FPGA Emulation p
 The CVA6 core can be compiled stand-alone, and obviously the APU is dependent on the core.
 
 The top-level directories of this repo:
-* **ci**: Scriptware for CI.
-* **common**: Source code used by both the CVA6 Core and the COREV APU. Subdirectories from here are `local` for common files that are hosted in this repo and `submodules` that are hosted in other repos.
+* **ci**: Scriptware of the former CI (toolchain and test suite builds).
+* **common**: Source code used by both the CVA6 Core and the COREV APU, under `local`.
+* **config**: Configurations of the core: one directory per target in `config/target`, see [config/README.md](config/README.md).
 * **core**: Source code for the CVA6 Core only. There should be no sources in this directory used to build anything other than the CVA6 core.
 * **corev_apu**: Source code for the CVA6 APU, exclusive of the CVA6 core. There should be no sources in this directory used to build the CVA6 core.
 * **docs**: Documentation.
+* **flows**: `cook.py` recipes, CI pipeline and dashboard, see [flows/README.md](flows/README.md).
 * **pd**: Example and CI scripts to synthesis CVA6.
+* **perf-model**: Performance model of the core.
+* **tutorials**: Simulation, ASIC and FPGA tutorials.
 * **util**: General utility scriptware.
 * **vendor**: Third-party IP maintained outside the repository.
 * **verif**: Verification environment for the CVA6. The verification files shared with other cores are in the [core-v-verif](https://github.com/openhwgroup/core-v-verif) repository on GitHub. core-v-verif is defined as a cva6 submodule.
 
+Not versioned, created by `cook.py`: **build** (outputs of the recipes, one
+directory per target), **artifacts** (pipeline report and dashboard) and
+**tools** (Spike, riscv-pk, Zephyr). The external test suites are cloned in
+`verif/tests` by `cook.py git-dependencies`.
 
 ## verif Directories
 
 - **bsp**:     board support package for test-programs compiled/assembled/linked for the CVA6.
 This BSP is used by both `core` testbench and `uvmt_cva6` UVM verification environment.
-- **regress**: scripts to install tools, test suites, CVA6 code and to execute tests
-- **sim**:     simulation environment (e.g. riscv-dv)
+- **core-v-verif**: submodule of the verification components shared with other cores.
+- **docs**:    verification plans and specifications.
+- **env**:     UVM environment (`uvme`) and riscv-dv extensions (`corev-dv`).
+- **patches**: patches applied to the submodules by `cook.py git-dependencies`.
+- **regress**: scripts of the former flow to install tools and run test suites.
+- **sim**:     riscv-dv simulation environment.
 - **tb**:      testbench module instancing the core
-- **tests**:   source of test cases and test lists
+- **tests**:   test lists (`*.yaml`, read by `cook.py`) and the sources of the custom, unit and UVM tests
 
 # Planned Improvements
 
