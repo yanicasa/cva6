@@ -6,7 +6,7 @@ of every option is in [README.md](README.md), writing a new flow is in
 [CONTRIBUTING.md](CONTRIBUTING.md), running them from a CI engine is in
 [CONTINUOUS_INTEGRATION.md](CONTINUOUS_INTEGRATION.md).
 
-The commands use `cv32a60x` and the `llvm-20-1-8` toolchain of the example
+The commands use `cv32a60x` and the `llvm-22` toolchain of the example
 `compiler.yml`; substitute the target and the toolchain name of your own
 configuration.
 
@@ -109,7 +109,7 @@ simulator is verified on which testbench, are in
 
 ```bash
 # 1. Compile a pattern
-./cook.py hello-world -t cv32a60x -c llvm-20-1-8
+./cook.py hello-world -t cv32a60x -c llvm-22
 
 # 2. Elaborate the design
 ./cook.py vcs-uvm-comp -t cv32a60x
@@ -136,7 +136,7 @@ Xcelium take the same options, `questa-uvm-comp`/`questa-uvm-run` and
 ./cook.py git-dependencies --repo riscv-tests
 
 # 1. Compile every test of the list
-./cook.py sw-compile-testlist -t cv32a60x -c llvm-20-1-8 \
+./cook.py sw-compile-testlist -t cv32a60x -c llvm-22 \
   -l verif/tests/base_rv32_p.yaml
 
 # 2. Elaborate once
@@ -174,8 +174,8 @@ verified.
 
 ```bash
 # 1. Compile them
-./cook.py coremark -t cv32a65x -c gcc-14
-./cook.py dhrystone -t cv32a65x -c gcc-14
+./cook.py coremark -t cv32a65x -c gcc-15
+./cook.py dhrystone -t cv32a65x -c gcc-15
 
 # 2. Elaborate with the performance counters
 ./cook.py vcs-uvm-comp -t cv32a65x --stats
@@ -199,7 +199,7 @@ recorded in the report of each run.
 ./cook.py macro-vcs-generator-testlist \
   -t cv32a60x \
   -l verif/tests/<generator-testlist>.yaml \
-  -c llvm-20-1-8 \
+  -c llvm-22 \
   --batch-size 8 \
   --trace-mode compact \
   --tandem-enabled
@@ -218,7 +218,7 @@ written to `build/cv32a60x/synthesis/reports/`.
 
 ```bash
 # 2. Compile a test and elaborate the netlist with its timing
-./cook.py hello-world -t cv32a60x -c llvm-20-1-8
+./cook.py hello-world -t cv32a60x -c llvm-22
 ./cook.py vcs-uvm-comp -t cv32a60x --comp-mode gate_wc_timing --trace-mode gui
 
 # 3. Run it

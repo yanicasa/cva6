@@ -408,29 +408,29 @@ Spike install. The rest only matter through `PATH`.
 Example configuration:
 
 ```yaml
-# LLVM 20 configuration
-llvm-20-1-8:
-    TOOLS_PATH: "/opt/riscv/llvm-20"
+# LLVM 22 configuration
+llvm-22:
+    TOOLS_PATH: "/opt/riscv/llvm-22"
     CLANG: "riscv32-unknown-elf-clang"
     GCC: None
     OBJDUMP: "riscv32-unknown-elf-objdump"
     NM: "riscv32-unknown-elf-nm"
     TARGET_TOOLCHAIN: "riscv32-unknown-elf"
 
-# GCC 14 configuration
-gcc-14:
-    TOOLS_PATH: "/opt/riscv/gcc-14"
+# GCC 15 configuration
+gcc-15:
+    TOOLS_PATH: "/opt/riscv/gcc-15"
     CLANG: None
-    GCC: "riscv32-unknown-elf-gcc"
-    OBJDUMP: "riscv32-unknown-elf-objdump"
-    NM: "riscv32-unknown-elf-nm"
-    TARGET_TOOLCHAIN: "riscv32-unknown-elf"
+    GCC: "riscv-none-elf-gcc"
+    OBJDUMP: "riscv-none-elf-objdump"
+    NM: "riscv-none-elf-nm"
+    TARGET_TOOLCHAIN: "riscv-none-elf"
 ```
 
 **Notes:**
 - `TOOLS_PATH`: Directory containing the toolchain
 - Set `None` for `GCC` if using Clang, and vice versa
-- Configuration name (e.g., `llvm-20-1-8`) is used with `-c` option in commands
+- Configuration name (e.g., `llvm-22`) is used with `-c` option in commands
 - `full-regression` compiles the software of a target with the
   `my_<target>_toolchain` entry, or with the `default_toolchain` entry when the target
   has none, so a configuration created on the fly needs no new entry
@@ -503,7 +503,7 @@ Build a simple "Hello World" test program.
 
 **Required Options:**
 - `-t, --target TEXT` - CVA6 user configuration (e.g., cv32a60x, cv32a65x)
-- `-c, --toolchain [llvm-20-1-8|...]` - Toolchain defined in `$CONFIG_DIR/compiler.yml`
+- `-c, --toolchain [llvm-22|...]` - Toolchain defined in `$CONFIG_DIR/compiler.yml`
 
 **Optional:**
 - `--march TEXT` - Custom RISC-V architecture string (overrides target default)
@@ -511,7 +511,7 @@ Build a simple "Hello World" test program.
 
 **Example:**
 ```bash
-./cook.py hello-world -t cv32a60x -c llvm-20-1-8
+./cook.py hello-world -t cv32a60x -c llvm-22
 ```
 
 #### `coremark`
@@ -524,7 +524,7 @@ Build the CoreMark performance benchmark.
 
 **Required Options:**
 - `-t, --target TEXT` - CVA6 user configuration
-- `-c, --toolchain [llvm-20-1-8|...]` - Toolchain defined in `$CONFIG_DIR/compiler.yml`
+- `-c, --toolchain [llvm-22|...]` - Toolchain defined in `$CONFIG_DIR/compiler.yml`
 
 **Optional:**
 - `--march TEXT` - Custom march string
@@ -532,7 +532,7 @@ Build the CoreMark performance benchmark.
 
 **Example:**
 ```bash
-./cook.py coremark -t cv32a60x -c llvm-20-1-8 --march rv32imac
+./cook.py coremark -t cv32a60x -c llvm-22 --march rv32imac
 ```
 
 **Output:** Generates `build/<target>/compile/coremark/*.elf` and reports
@@ -547,7 +547,7 @@ Build the Dhrystone performance benchmark.
 
 **Required Options:**
 - `-t, --target TEXT` - CVA6 user configuration
-- `-c, --toolchain [llvm-20-1-8|...]` - Toolchain defined in `$CONFIG_DIR/compiler.yml`
+- `-c, --toolchain [llvm-22|...]` - Toolchain defined in `$CONFIG_DIR/compiler.yml`
 
 **Optional:**
 - `--march TEXT` - Custom march string
@@ -555,7 +555,7 @@ Build the Dhrystone performance benchmark.
 
 **Example:**
 ```bash
-./cook.py dhrystone -t cv32a65x -c gcc-14
+./cook.py dhrystone -t cv32a65x -c gcc-15
 ```
 
 #### `pk-hello-world`
@@ -655,7 +655,7 @@ Compile software from source files and generate ELF binary with reports.
 
 **Required Options:**
 - `-t, --target TEXT` - CVA6 user configuration
-- `-c, --toolchain [llvm-20-1-8|...]` - Toolchain defined in `$CONFIG_DIR/compiler.yml`
+- `-c, --toolchain [llvm-22|...]` - Toolchain defined in `$CONFIG_DIR/compiler.yml`
 - `--linker TEXT` - Linker script file path
 - `--out TEXT` - Test name (used throughout the flow)
 
@@ -670,7 +670,7 @@ Compile software from source files and generate ELF binary with reports.
 ```bash
 ./cook.py sw-compile \
   -t cv32a60x \
-  -c llvm-20-1-8 \
+  -c llvm-22 \
   --linker config/target/cv32a60x/link.ld \
   --out my_test \
   --inc verif/tests/custom/common \
@@ -698,7 +698,7 @@ Build tests from a YAML testlist file.
 
 **Required Options:**
 - `-t, --target TEXT` - CVA6 user configuration
-- `-c, --toolchain [llvm-20-1-8|...]` - Toolchain defined in `$CONFIG_DIR/compiler.yml`
+- `-c, --toolchain [llvm-22|...]` - Toolchain defined in `$CONFIG_DIR/compiler.yml`
 - `-l, --testlist TEXT` - Testlist YAML file in `verif/tests`
 
 **Optional:**
@@ -715,10 +715,10 @@ riscv-tests`.
 **Example:**
 ```bash
 # Compile all tests in the list
-./cook.py sw-compile-testlist -t cv32a60x -c llvm-20-1-8 -l verif/tests/base_rv32_p.yaml
+./cook.py sw-compile-testlist -t cv32a60x -c llvm-22 -l verif/tests/base_rv32_p.yaml
 
 # Compile only one test from the list
-./cook.py sw-compile-testlist -t cv32a60x -c llvm-20-1-8 -l verif/tests/base_rv32_p.yaml -n rv32ui-p-add
+./cook.py sw-compile-testlist -t cv32a60x -c llvm-22 -l verif/tests/base_rv32_p.yaml -n rv32ui-p-add
 ```
 
 ---
@@ -2145,7 +2145,7 @@ Complete flow: VCS Generator → SW Compile → UVM Run from testlist.
 
 **Optional:**
 - `-n, --testname TEXT` - Single test of the testlist
-- `-c, --toolchain [llvm-20-1-8|...]` - Toolchain (default: llvm-20-1-8)
+- `-c, --toolchain [llvm-22|...]` - Toolchain defined in `$CONFIG_DIR/compiler.yml`
 - `--march TEXT` - Custom march
 - `--mabi TEXT` - Custom mabi
 - `--comp-mode [rtl|gate_wc_power|gate_wc_timing|coverage]` - Hardware compilation mode (default: `rtl`)
@@ -2166,7 +2166,7 @@ Complete flow: VCS Generator → SW Compile → UVM Run from testlist.
 ./cook.py macro-vcs-generator-testlist \
   -t cv32a60x \
   -l verif/tests/<generator-testlist>.yaml \
-  -c llvm-20-1-8 \
+  -c llvm-22 \
   --trace-mode fast \
   --batch-size 4
 
@@ -2175,7 +2175,7 @@ Complete flow: VCS Generator → SW Compile → UVM Run from testlist.
   -t cv32a65x \
   -l verif/tests/<generator-testlist>.yaml \
   -n arithmetic_stress \
-  -c gcc-14 \
+  -c gcc-15 \
   --tandem-enabled \
   --stats
 ```

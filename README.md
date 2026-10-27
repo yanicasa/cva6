@@ -113,7 +113,7 @@ source flows/config/setenv.sh
 ./cook.py --help
 
 # Compile a test program
-./cook.py hello-world --target cv32a60x --compiler llvm-20-1-8
+./cook.py hello-world --target cv32a60x --compiler llvm-22
 
 # Compile RTL and run simulation with VCS
 ./cook.py vcs-uvm-comp --target cv32a60x          #
